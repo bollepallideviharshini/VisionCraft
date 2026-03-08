@@ -232,23 +232,35 @@ serve(async (req) => {
     const imageData = aiData.choices?.[0]?.message?.images?.[0]?.image_url?.url;
 
     if (!imageData) {
-      // Check if the model blocked the request due to safety filters
+      // The model returned text but no image — fall back to a chat response
       const textResponse = aiData.choices?.[0]?.message?.content || "";
-      const isBlocked = textResponse.toLowerCase().includes("safety") || 
-                        textResponse.toLowerCase().includes("can't generate") ||
-                        textResponse.toLowerCase().includes("unable to") ||
-                        textResponse.toLowerCase().includes("policy");
       
-      if (isBlocked) {
+      if (textResponse) {
+        // Model had something to say (safety filter, clarification, etc.)
+        const isBlocked = textResponse.toLowerCase().includes("safety") || 
+                          textResponse.toLowerCase().includes("can't generate") ||
+                          textResponse.toLowerCase().includes("unable to") ||
+                          textResponse.toLowerCase().includes("policy") ||
+                          textResponse.toLowerCase().includes("cannot");
+        
+        const fallbackText = isBlocked
+          ? `I wasn't able to generate that exact image due to content filters, but I have some creative alternatives! Try describing the scene differently — for example, instead of a specific person, describe their iconic look, style, or silhouette. I can create something equally stunning with a fresh artistic twist. What would you like to try?`
+          : textResponse;
+
         return new Response(
-          JSON.stringify({ 
-            type: "chat", 
-            textResponse: `I wasn't able to generate that exact image due to content filters, but I have some creative alternatives! Try describing the scene differently — for example, instead of a specific person, describe their iconic look, style, or silhouette. I can create something equally stunning with a fresh artistic twist. What would you like to try?` 
-          }),
+          JSON.stringify({ type: "chat", textResponse: fallbackText }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-      throw new Error("No image generated from AI");
+
+      // No text and no image — give a helpful nudge
+      return new Response(
+        JSON.stringify({ 
+          type: "chat", 
+          textResponse: "I couldn't generate an image from that prompt. Could you describe what you'd like to see in more detail? For example: 'A cinematic sunset over a futuristic city' or 'A watercolor portrait in soft pastels'." 
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     const base64Match = imageData.match(/^data:image\/(png|jpeg|jpg|webp);base64,(.+)$/);
