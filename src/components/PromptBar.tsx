@@ -51,6 +51,18 @@ export default function PromptBar({ onGenerate, isGenerating, initialPrompt, gue
       transition={{ duration: 0.6, delay: 0.2 }}
       className="w-full max-w-3xl mx-auto space-y-4"
     >
+      {/* Guest credits badge */}
+      {guestCreditsRemaining !== undefined && guestCreditsMax !== undefined && (
+        <div className="flex justify-end">
+          <Badge
+            variant={guestCreditsRemaining > 0 ? "secondary" : "destructive"}
+            className="text-xs px-3 py-1"
+          >
+            Remaining Credits: {guestCreditsRemaining}/{guestCreditsMax}
+          </Badge>
+        </div>
+      )}
+
       {/* Prompt input */}
       <div className="relative gradient-border rounded-2xl">
         <Textarea
