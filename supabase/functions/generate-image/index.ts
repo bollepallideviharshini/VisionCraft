@@ -228,22 +228,29 @@ serve(async (req) => {
     });
 
     if (!aiResponse.ok) {
+      const errText = await aiResponse.text();
+      console.error(`[generate-image] AI gateway error: status=${aiResponse.status}`, errText);
+      
       if (aiResponse.status === 429) {
+        console.warn("[generate-image] RATE LIMITED by AI gateway");
         return new Response(JSON.stringify({ error: "Rate limited. Please try again later." }), {
           status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
       if (aiResponse.status === 402) {
+        console.warn("[generate-image] USAGE LIMIT reached");
         return new Response(JSON.stringify({ error: "Usage limit reached. Please add credits." }), {
           status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      const errText = await aiResponse.text();
-      console.error("AI gateway error:", aiResponse.status, errText);
-      throw new Error("AI generation failed");
+      throw new Error(`AI generation failed (${aiResponse.status})`);
     }
 
     const aiData = await aiResponse.json();
+    console.log("[generate-image] AI response keys:", Object.keys(aiData));
+    console.log("[generate-image] Has images:", !!aiData.choices?.[0]?.message?.images?.length);
+    console.log("[generate-image] Has text:", !!aiData.choices?.[0]?.message?.content);
+    
     const imageData = aiData.choices?.[0]?.message?.images?.[0]?.image_url?.url;
 
     if (!imageData) {
