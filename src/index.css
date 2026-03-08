@@ -176,4 +176,58 @@
     break-inside: avoid;
     margin-bottom: 1rem;
   }
+
+  @keyframes shimmer {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+  }
+
+  .skeleton-shimmer {
+    position: relative;
+    overflow: hidden;
+    background: hsl(var(--muted));
+  }
+
+  .skeleton-shimmer::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      hsl(var(--foreground) / 0.04) 40%,
+      hsl(var(--foreground) / 0.08) 50%,
+      hsl(var(--foreground) / 0.04) 60%,
+      transparent 100%
+    );
+    animation: shimmer 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 1; }
+  }
+
+  .pulse-dot {
+    animation: pulse-dot 1.5s ease-in-out infinite;
+  }
+
+  @keyframes progress-glow {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(200%); }
+  }
+
+  .progress-glow {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .progress-glow::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    width: 40%;
+    background: linear-gradient(90deg, transparent, hsl(var(--foreground) / 0.3), transparent);
+    animation: progress-glow 2s ease-in-out infinite;
+  }
 }

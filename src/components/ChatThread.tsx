@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Download, Copy, Share2, RefreshCw, Grid2x2, Wand2, Paintbrush, Maximize2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
 import { toast } from "@/hooks/use-toast";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 
@@ -25,6 +24,100 @@ interface ChatThreadProps {
   onRegenerate?: (messageId: string, prompt: string, aspectRatio?: string, style?: string) => void;
   onVariations?: (messageId: string, prompt: string, aspectRatio?: string, style?: string) => void;
   onRefine?: (messageId: string, imageUrl: string, prompt: string) => void;
+}
+
+const ASPECT_RATIO_CLASS: Record<string, string> = {
+  "1:1": "aspect-square",
+  "16:9": "aspect-video",
+  "9:16": "aspect-[9/16]",
+};
+
+const STATUS_STEPS = [
+  "Analyzing prompt...",
+  "Painting your vision...",
+  "Upscaling for clarity...",
+];
+
+function SkeletonLoader({ aspectRatio, generatingLabel }: { aspectRatio?: string; generatingLabel?: string }) {
+  const [stepIndex, setStepIndex] = useState(0);
+  const aspectClass = ASPECT_RATIO_CLASS[aspectRatio || "1:1"] || "aspect-square";
+
+  useEffect(() => {
+    // If a custom label is set externally, don't auto-cycle
+    if (generatingLabel && !STATUS_STEPS.includes(generatingLabel)) return;
+
+    const interval = setInterval(() => {
+      setStepIndex((prev) => Math.min(prev + 1, STATUS_STEPS.length - 1));
+    }, 3500);
+    return () => clearInterval(interval);
+  }, [generatingLabel]);
+
+  const displayLabel = generatingLabel && !STATUS_STEPS.includes(generatingLabel)
+    ? generatingLabel
+    : STATUS_STEPS[stepIndex];
+
+  return (
+    <div className="rounded-md border border-border/20 overflow-hidden">
+      {/* Glowing progress bar */}
+      <div className="h-[2px] w-full bg-muted progress-glow" />
+
+      {/* Skeleton area */}
+      <div className={`skeleton-shimmer ${aspectClass} max-h-[400px] flex flex-col items-center justify-center gap-3`}>
+        <div className="flex items-center gap-2">
+          <span className="h-1.5 w-1.5 rounded-full bg-foreground/50 pulse-dot" />
+          <AnimatePresence mode="wait">
+            <motion.p
+              key={displayLabel}
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              transition={{ duration: 0.25 }}
+              className="text-xs text-muted-foreground font-mono tracking-wide"
+            >
+              {displayLabel}
+            </motion.p>
+          </AnimatePresence>
+        </div>
+
+        {/* Step dots */}
+        <div className="flex items-center gap-1.5">
+          {STATUS_STEPS.map((_, idx) => (
+            <div
+              key={idx}
+              className={`h-1 rounded-full transition-all duration-500 ${
+                idx <= stepIndex
+                  ? "w-4 bg-foreground/30"
+                  : "w-1 bg-foreground/10"
+              }`}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CrossFadeImage({ src, alt, className }: { src: string; alt: string; className?: string }) {
+  const [loaded, setLoaded] = useState(false);
+
+  return (
+    <div className="relative">
+      {/* Skeleton behind until loaded */}
+      {!loaded && (
+        <div className={`skeleton-shimmer ${className} bg-muted`} />
+      )}
+      <motion.img
+        src={src}
+        alt={alt}
+        className={`${className} ${loaded ? "" : "absolute inset-0"}`}
+        loading="lazy"
+        onLoad={() => setLoaded(true)}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: loaded ? 1 : 0 }}
+        transition={{ duration: 0.5, ease: "easeOut" }}
+      />
+    </div>
+  );
 }
 
 export default function ChatThread({ messages, onRegenerate, onVariations, onRefine }: ChatThreadProps) {
@@ -71,41 +164,21 @@ export default function ChatThread({ messages, onRegenerate, onVariations, onRef
       <div className={`grid ${cols} gap-1`}>
         {urls.map((url, idx) => (
           <div key={idx} className="group relative overflow-hidden rounded-sm">
-            <img
+            <CrossFadeImage
               src={url}
               alt={`${prompt} - ${idx + 1}`}
               className="w-full object-cover aspect-square"
-              loading="lazy"
             />
-            {/* Per-image hover actions */}
             <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-end justify-center opacity-0 group-hover:opacity-100">
               <div className="flex items-center gap-0.5 pb-2">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 text-white/80 hover:text-white hover:bg-white/20"
-                  onClick={() => handleDownload(url)}
-                  title="Download"
-                >
+                <Button variant="ghost" size="icon" className="h-7 w-7 text-white/80 hover:text-white hover:bg-white/20" onClick={() => handleDownload(url)} title="Download">
                   <Download className="h-3.5 w-3.5" />
                 </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 text-white/80 hover:text-white hover:bg-white/20"
-                  onClick={() => setExpandedImage(url)}
-                  title="Expand"
-                >
+                <Button variant="ghost" size="icon" className="h-7 w-7 text-white/80 hover:text-white hover:bg-white/20" onClick={() => setExpandedImage(url)} title="Expand">
                   <Maximize2 className="h-3.5 w-3.5" />
                 </Button>
                 {onRefine && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 text-white/80 hover:text-white hover:bg-white/20"
-                    onClick={() => onRefine(msgId, url, prompt)}
-                    title="Refine"
-                  >
+                  <Button variant="ghost" size="icon" className="h-7 w-7 text-white/80 hover:text-white hover:bg-white/20" onClick={() => onRefine(msgId, url, prompt)} title="Refine">
                     <Wand2 className="h-3.5 w-3.5" />
                   </Button>
                 )}
@@ -120,11 +193,10 @@ export default function ChatThread({ messages, onRegenerate, onVariations, onRef
   const renderSingleImage = (msg: ChatMessage, i: number) => (
     <>
       <div className="rounded-md border border-[hsl(var(--ai-bubble-border))] bg-[hsl(var(--ai-bubble))] overflow-hidden">
-        <img
+        <CrossFadeImage
           src={msg.imageUrl!}
           alt={msg.prompt}
           className="w-full object-contain"
-          loading="lazy"
         />
         <div className="flex items-center justify-between px-3 py-2 border-t border-[hsl(var(--ai-bubble-border))]">
           <p className="text-[11px] text-muted-foreground font-mono truncate max-w-[40%]">
@@ -144,7 +216,6 @@ export default function ChatThread({ messages, onRegenerate, onVariations, onRef
         </div>
       </div>
 
-      {/* Action buttons below single image */}
       <div className="flex items-center gap-1.5 pl-1">
         {onRefine && (
           <Button variant="ghost" size="sm" className="h-7 px-2.5 text-[11px] font-mono text-muted-foreground hover:text-foreground gap-1.5" onClick={() => onRefine(msg.id, msg.imageUrl!, msg.prompt)}>
@@ -164,6 +235,12 @@ export default function ChatThread({ messages, onRegenerate, onVariations, onRef
       </div>
     </>
   );
+
+  // Find the aspect ratio from the preceding user message for a generating assistant message
+  const getAspectForMsg = (msgIndex: number): string | undefined => {
+    const userMsg = findUserMsgForAssistant(msgIndex);
+    return userMsg?.aspectRatio;
+  };
 
   return (
     <>
@@ -203,16 +280,12 @@ export default function ChatThread({ messages, onRegenerate, onVariations, onRef
                   </div>
                 )}
 
-                {/* Generating state */}
+                {/* Generating state — skeleton loader */}
                 {msg.isGenerating && (
-                  <div className="rounded-md border border-[hsl(var(--ai-bubble-border))] bg-[hsl(var(--ai-bubble))] overflow-hidden">
-                    <Progress value={65} className="h-0.5 rounded-none bg-muted [&>div]:bg-foreground/40" />
-                    <div className="flex h-56 items-center justify-center">
-                      <p className="text-xs text-muted-foreground font-mono tracking-wide">
-                        {msg.generatingLabel || "Painting your vision..."}
-                      </p>
-                    </div>
-                  </div>
+                  <SkeletonLoader
+                    aspectRatio={getAspectForMsg(i)}
+                    generatingLabel={msg.generatingLabel}
+                  />
                 )}
 
                 {/* Multi-image grid */}
