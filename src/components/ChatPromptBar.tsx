@@ -11,6 +11,8 @@ const ASPECT_RATIOS = [
   { label: "9:16", value: "9:16", icon: RectangleVertical },
 ];
 
+const QUANTITY_OPTIONS = [1, 2, 4];
+
 const STYLES = [
   "Cinematic", "Macro", "Minimalist", "Pop Art",
   "Cyberpunk", "Wes Anderson", "Bird's Eye View", "Gothic",
@@ -26,7 +28,7 @@ const INSPIRATION_CHIPS = [
 ];
 
 interface ChatPromptBarProps {
-  onGenerate: (prompt: string, aspectRatio: string, style: string) => void;
+  onGenerate: (prompt: string, aspectRatio: string, style: string, quantity: number) => void;
   isGenerating: boolean;
   initialPrompt?: string;
   guestCreditsRemaining?: number;
@@ -43,6 +45,7 @@ export default function ChatPromptBar({
   const [prompt, setPrompt] = useState(initialPrompt || "");
   const [aspectRatio, setAspectRatio] = useState("1:1");
   const [selectedStyle, setSelectedStyle] = useState("");
+  const [quantity, setQuantity] = useState(1);
   const [showInspiration, setShowInspiration] = useState(false);
 
   useEffect(() => {
@@ -51,7 +54,7 @@ export default function ChatPromptBar({
 
   const handleSubmit = () => {
     if (!prompt.trim() || isGenerating) return;
-    onGenerate(prompt.trim(), aspectRatio, selectedStyle);
+    onGenerate(prompt.trim(), aspectRatio, selectedStyle, quantity);
     setPrompt("");
   };
 
@@ -123,6 +126,25 @@ export default function ChatPromptBar({
                   </div>
 
                   <p className="text-[11px] font-medium uppercase tracking-widest text-muted-foreground">
+                    Quantity
+                  </p>
+                  <div className="flex items-center gap-0.5 rounded-md bg-secondary/60 p-0.5">
+                    {QUANTITY_OPTIONS.map((q) => (
+                      <button
+                        key={q}
+                        onClick={() => setQuantity(q)}
+                        className={`flex flex-1 items-center justify-center rounded px-2.5 py-1.5 text-[11px] font-medium transition-colors ${
+                          quantity === q
+                            ? "bg-foreground text-background"
+                            : "text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        {q} {q === 1 ? "image" : "images"}
+                      </button>
+                    ))}
+                  </div>
+
+                  <p className="text-[11px] font-medium uppercase tracking-widest text-muted-foreground">
                     Style
                   </p>
                   <div className="flex flex-wrap gap-1">
@@ -142,12 +164,17 @@ export default function ChatPromptBar({
                   </div>
 
                   {/* Active selections summary */}
-                  {(aspectRatio !== "1:1" || selectedStyle) && (
+                  {(aspectRatio !== "1:1" || selectedStyle || quantity > 1) && (
                     <div className="flex items-center gap-1.5 pt-1 border-t border-border/30">
                       <span className="text-[10px] text-muted-foreground">Active:</span>
                       {aspectRatio !== "1:1" && (
                         <span className="text-[10px] font-mono text-foreground bg-secondary/60 px-1.5 py-0.5 rounded">
                           {aspectRatio}
+                        </span>
+                      )}
+                      {quantity > 1 && (
+                        <span className="text-[10px] font-mono text-foreground bg-secondary/60 px-1.5 py-0.5 rounded">
+                          ×{quantity}
                         </span>
                       )}
                       {selectedStyle && (
@@ -176,7 +203,7 @@ export default function ChatPromptBar({
 
           {/* Text input */}
           <Textarea
-            placeholder="Describe an image..."
+            placeholder="Describe an image or just say hi..."
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             onKeyDown={handleKeyDown}

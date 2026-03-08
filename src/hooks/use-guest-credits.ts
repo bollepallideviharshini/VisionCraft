@@ -22,6 +22,14 @@ export function useGuestCredits() {
     });
   }, []);
 
+  const consumeCredits = useCallback((count: number) => {
+    setRemaining((prev) => {
+      const next = Math.max(0, prev - count);
+      localStorage.setItem(GUEST_CREDITS_KEY, String(next));
+      return next;
+    });
+  }, []);
+
   const saveGuestImage = useCallback((imageUrl: string, prompt: string, aspectRatio: string, style: string | null) => {
     const images = JSON.parse(localStorage.getItem(GUEST_IMAGES_KEY) || "[]");
     images.push({ imageUrl, prompt, aspectRatio, style, createdAt: new Date().toISOString() });
@@ -49,6 +57,7 @@ export function useGuestCredits() {
     maxCredits: MAX_GUEST_CREDITS,
     hasCredits: remaining > 0,
     consumeCredit,
+    consumeCredits,
     saveGuestImage,
     getGuestImages,
     clearGuestData,
