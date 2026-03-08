@@ -28,7 +28,7 @@ serve(async (req) => {
     // Get user from auth header (optional for guests)
     const authHeader = req.headers.get("Authorization");
     const supabaseClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-    const anonClient = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_PUBLISHABLE_KEY")!);
+    const anonClient = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_ANON_KEY")!);
     
     let user = null;
     if (authHeader) {
