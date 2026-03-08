@@ -1,30 +1,26 @@
 import { useState, useCallback, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { useGuestCredits } from "@/hooks/use-guest-credits";
 import Navbar from "@/components/Navbar";
-import PromptBar from "@/components/PromptBar";
+import ChatThread, { type ChatMessage } from "@/components/ChatThread";
+import ChatPromptBar from "@/components/ChatPromptBar";
 import InspirationFeed from "@/components/InspirationFeed";
-import ImagePreview from "@/components/ImagePreview";
 import GuestLimitModal from "@/components/GuestLimitModal";
+import { Sparkles } from "lucide-react";
 
 export default function Index() {
   const { user } = useAuth();
-  const navigate = useNavigate();
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [generatedImage, setGeneratedImage] = useState<string | null>(null);
-  const [lastPrompt, setLastPrompt] = useState("");
-  const [isPublic, setIsPublic] = useState(false);
-  const [currentImageId, setCurrentImageId] = useState<string | null>(null);
   const [inspirationPrompt, setInspirationPrompt] = useState("");
   const [showLimitModal, setShowLimitModal] = useState(false);
 
   const { remaining, maxCredits, hasCredits, consumeCredit, saveGuestImage, getGuestImages, clearGuestData } = useGuestCredits();
 
-  // Transfer guest images when user signs up/logs in
+  // Transfer guest images on sign-in
   useEffect(() => {
     if (!user) return;
     const guestImages = getGuestImages();
@@ -44,22 +40,26 @@ export default function Index() {
       clearGuestData();
       toast({ title: "Guest images transferred!", description: `${guestImages.length} image(s) added to your library.` });
     };
-
     transferImages();
   }, [user]);
 
   const handleGenerate = useCallback(async (prompt: string, aspectRatio: string, style: string) => {
-    // Guest flow: check credits
-    if (!user) {
-      if (!hasCredits) {
-        setShowLimitModal(true);
-        return;
-      }
+    if (!user && !hasCredits) {
+      setShowLimitModal(true);
+      return;
     }
 
+    const userMsgId = crypto.randomUUID();
+    const aiMsgId = crypto.randomUUID();
+
+    // Add user bubble + generating bubble
+    setMessages((prev) => [
+      ...prev,
+      { id: userMsgId, role: "user", prompt, aspectRatio, style: style || undefined, timestamp: new Date() },
+      { id: aiMsgId, role: "assistant", prompt, isGenerating: true, timestamp: new Date() },
+    ]);
+
     setIsGenerating(true);
-    setGeneratedImage(null);
-    setLastPrompt(prompt);
 
     try {
       const fullPrompt = style ? `${prompt}, in ${style} style` : prompt;
@@ -71,9 +71,12 @@ export default function Index() {
       if (error) throw error;
       if (!data?.imageUrl) throw new Error("No image returned");
 
-      setGeneratedImage(data.imageUrl);
-      setCurrentImageId(data.imageId || null);
-      setIsPublic(false);
+      // Update the AI bubble with the result
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === aiMsgId ? { ...m, imageUrl: data.imageUrl, isGenerating: false } : m
+        )
+      );
 
       if (!user) {
         consumeCredit();
@@ -82,27 +85,16 @@ export default function Index() {
 
       toast({ title: "Image generated!", description: "Your creation is ready." });
     } catch (err: any) {
+      // Remove the failed AI bubble
+      setMessages((prev) => prev.filter((m) => m.id !== aiMsgId));
       toast({ title: "Generation failed", description: err.message, variant: "destructive" });
     } finally {
       setIsGenerating(false);
     }
   }, [user, hasCredits, consumeCredit, saveGuestImage]);
 
-  const handleTogglePublic = async () => {
-    if (!currentImageId) return;
-    const newValue = !isPublic;
-    const { error } = await supabase
-      .from("generated_images")
-      .update({ is_public: newValue })
-      .eq("id", currentImageId);
-    if (!error) {
-      setIsPublic(newValue);
-      toast({ title: newValue ? "Image is now public" : "Image is now private" });
-    }
-  };
-
   return (
-    <div className="min-h-screen bg-background">
+    <div className="flex h-screen flex-col bg-background">
       <Navbar />
       <GuestLimitModal open={showLimitModal} onOpenChange={setShowLimitModal} />
 
@@ -112,46 +104,46 @@ export default function Index() {
         <div className="absolute bottom-0 left-0 h-[300px] w-[300px] rounded-full bg-accent/5 blur-[100px]" />
       </div>
 
-      <main className="relative z-10 mx-auto max-w-7xl px-4 py-12 space-y-12">
-        {/* Hero */}
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          className="text-center space-y-4"
-        >
-          <h1 className="text-5xl md:text-6xl font-bold tracking-tight">
-            Generate Your <span className="gradient-text">Vision</span>
-          </h1>
-          <p className="text-lg text-muted-foreground max-w-xl mx-auto">
-            Transform ideas into stunning visuals with AI-powered image generation.
-            Type a description and watch it come to life.
-          </p>
-        </motion.div>
+      {/* Scrollable chat area */}
+      <div className="relative z-10 flex-1 overflow-y-auto">
+        <div className="mx-auto max-w-3xl px-4 py-8">
+          {messages.length === 0 ? (
+            <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-8">
+              <motion.div
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6 }}
+                className="text-center space-y-4"
+              >
+                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl gradient-bg glow mb-4">
+                  <Sparkles className="h-8 w-8 text-primary-foreground" />
+                </div>
+                <h1 className="text-4xl md:text-5xl font-bold tracking-tight">
+                  Generate Your <span className="gradient-text">Vision</span>
+                </h1>
+                <p className="text-base text-muted-foreground max-w-md mx-auto">
+                  Describe an image and watch it come to life. Start typing below or pick an inspiration.
+                </p>
+              </motion.div>
 
-        {/* Prompt Bar */}
-        <PromptBar
+              <InspirationFeed onSelect={(p) => setInspirationPrompt(p)} />
+            </div>
+          ) : (
+            <ChatThread messages={messages} />
+          )}
+        </div>
+      </div>
+
+      {/* Sticky prompt bar */}
+      <div className="relative z-20">
+        <ChatPromptBar
           onGenerate={handleGenerate}
           isGenerating={isGenerating}
           initialPrompt={inspirationPrompt}
           guestCreditsRemaining={!user ? remaining : undefined}
           guestCreditsMax={!user ? maxCredits : undefined}
         />
-
-        {/* Generated Image Preview */}
-        <ImagePreview
-          imageUrl={generatedImage}
-          isGenerating={isGenerating}
-          prompt={lastPrompt}
-          onTogglePublic={user ? handleTogglePublic : undefined}
-          isPublic={isPublic}
-        />
-
-        {/* Inspiration Feed */}
-        {!generatedImage && !isGenerating && (
-          <InspirationFeed onSelect={(p) => setInspirationPrompt(p)} />
-        )}
-      </main>
+      </div>
     </div>
   );
 }
