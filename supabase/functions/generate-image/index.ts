@@ -17,7 +17,16 @@ interface ChatHistoryItem {
   role: "user" | "assistant";
   prompt: string;
   imageUrl?: string;
+  textResponse?: string;
 }
+
+const SYSTEM_PERSONA = `You are VisionCraft AI, a friendly and encouraging creative assistant. You help users bring their visual ideas to life. You're warm, professional, and love helping people explore their creativity.
+
+When chatting, be concise and helpful. If a user seems unsure, suggest creative prompts they could try. You know you can generate images when asked.
+
+Keep responses short (2-3 sentences max for casual chat). Be enthusiastic about creative ideas.`;
+
+const INTENT_SYSTEM = `Classify the user's intent. Reply with EXACTLY one word: "image" if the user wants to create, draw, generate, design, paint, or describes a visual scene/object. Reply "chat" for everything else (greetings, questions, conversation). Only reply with "image" or "chat", nothing else.`;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -45,32 +54,110 @@ serve(async (req) => {
       }
     }
 
-    const { prompt, aspectRatio = "1:1", chatHistory = [], variationMode = false } = await req.json();
+    const { prompt, aspectRatio = "1:1", chatHistory = [], variationMode = false, forceImage = false } = await req.json();
     if (!prompt || typeof prompt !== "string" || prompt.length > 2000) {
       throw new Error("Invalid prompt");
     }
 
+    // --- Step 1: Intent Detection (skip if forceImage) ---
+    let intent = "image";
+    if (!forceImage && !variationMode) {
+      const intentResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${LOVABLE_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "google/gemini-2.5-flash-lite",
+          messages: [
+            { role: "system", content: INTENT_SYSTEM },
+            { role: "user", content: prompt },
+          ],
+        }),
+      });
+
+      if (intentResponse.ok) {
+        const intentData = await intentResponse.json();
+        const classification = intentData.choices?.[0]?.message?.content?.trim().toLowerCase();
+        if (classification === "chat") {
+          intent = "chat";
+        }
+      }
+    }
+
+    // --- Step 2a: Chat response ---
+    if (intent === "chat") {
+      const chatMessages: any[] = [
+        { role: "system", content: SYSTEM_PERSONA },
+      ];
+
+      // Add conversation history for memory
+      const recentHistory = (chatHistory as ChatHistoryItem[]).slice(-8);
+      for (const item of recentHistory) {
+        if (item.role === "user") {
+          chatMessages.push({ role: "user", content: item.prompt });
+        } else if (item.role === "assistant") {
+          if (item.textResponse) {
+            chatMessages.push({ role: "assistant", content: item.textResponse });
+          } else if (item.imageUrl) {
+            chatMessages.push({ role: "assistant", content: `[Generated an image: "${item.prompt}"]` });
+          }
+        }
+      }
+
+      chatMessages.push({ role: "user", content: prompt });
+
+      const chatResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${LOVABLE_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "google/gemini-2.5-flash",
+          messages: chatMessages,
+        }),
+      });
+
+      if (!chatResponse.ok) {
+        if (chatResponse.status === 429) {
+          return new Response(JSON.stringify({ error: "Rate limited. Please try again later." }), {
+            status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        if (chatResponse.status === 402) {
+          return new Response(JSON.stringify({ error: "Usage limit reached. Please add credits." }), {
+            status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        throw new Error("Chat generation failed");
+      }
+
+      const chatData = await chatResponse.json();
+      const textContent = chatData.choices?.[0]?.message?.content || "I'm here to help! Try describing an image you'd like me to create.";
+
+      return new Response(
+        JSON.stringify({ type: "chat", textResponse: textContent }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // --- Step 2b: Image generation ---
     const dims = ASPECT_RATIO_MAP[aspectRatio] || ASPECT_RATIO_MAP["1:1"];
 
-    // Build conversational messages for the AI
     const aiMessages: any[] = [];
 
-    // System message for context
     aiMessages.push({
       role: "user",
       content: "You are an image generation AI. Generate images based on user descriptions. When the user refers to previous images or asks for modifications, use the conversation context to understand what they want changed.",
     });
 
-    // Add chat history for conversational memory (last 6 exchanges max)
     const recentHistory = (chatHistory as ChatHistoryItem[]).slice(-6);
     for (const item of recentHistory) {
       if (item.role === "user") {
-        aiMessages.push({
-          role: "user",
-          content: `Previous request: ${item.prompt}`,
-        });
+        aiMessages.push({ role: "user", content: `Previous request: ${item.prompt}` });
       } else if (item.role === "assistant" && item.imageUrl) {
-        // Include the previous image as reference
         aiMessages.push({
           role: "user",
           content: [
@@ -81,11 +168,9 @@ serve(async (req) => {
       }
     }
 
-    // Current request
     const variationSuffix = variationMode
       ? " Create a slight variation of this concept with minor creative differences."
       : "";
-    
     const hasHistory = recentHistory.length > 0;
     const contextPrefix = hasHistory
       ? "Based on our conversation above, generate a new image: "
@@ -112,14 +197,12 @@ serve(async (req) => {
     if (!aiResponse.ok) {
       if (aiResponse.status === 429) {
         return new Response(JSON.stringify({ error: "Rate limited. Please try again later." }), {
-          status: 429,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
       if (aiResponse.status === 402) {
         return new Response(JSON.stringify({ error: "Usage limit reached. Please add credits." }), {
-          status: 402,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
       const errText = await aiResponse.text();
@@ -179,7 +262,7 @@ serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ imageUrl, imageId }),
+      JSON.stringify({ type: "image", imageUrl, imageId }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (e) {
