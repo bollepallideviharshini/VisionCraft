@@ -31,20 +31,25 @@ Core principles:
 - If a user describes a person, scene, or visual concept, encourage them to generate it immediately rather than over-explaining.
 - Use confident, evocative language. Think like a creative director pitching a vision, not a chatbot answering questions.`;
 
-const INTENT_SYSTEM = `You are an intent classifier for a creative AI image generation app. Reply with EXACTLY one word: "image" or "chat".
+const INTENT_SYSTEM = `You are an intent classifier for a creative AI image generation app. Reply with EXACTLY one word: "image", "chat", or "new_image".
+
+Reply "new_image" if the user:
+- Starts a completely NEW topic/subject unrelated to previous conversation (e.g., switching from "mother and son" to "Phad art")
+- Uses words like "Create", "Generate", "Design", "Draw", "Make" followed by a new subject
+- Describes a new scene, style, or concept that does NOT reference the previous image
+- Introduces a brand-new noun or art style with no connection to prior context
 
 Reply "image" if the user:
-- Wants to create, draw, generate, design, paint, or visualize anything
-- Describes a visual scene, object, person, or concept (e.g., "Virat Kohli in a cyberpunk city", "a sunset over mountains")
-- Mentions a celebrity, landmark, or art style in a way that implies they want a visual
-- Asks for a portrait, poster, logo, illustration, or any visual output
+- Wants to MODIFY or REFINE a previous image (e.g., "make it red", "add a hat", "change the background")
+- Explicitly references the previous image ("apply this style to the last one", "change the previous image")
+- Uses words like "more", "less", "bigger", "different angle" suggesting iteration on existing work
 
 Reply "chat" ONLY if the user is:
 - Greeting (hi, hello) without describing anything visual
 - Asking a non-visual question (how does this work?, what can you do?)
 - Having pure conversation with no visual intent
 
-When in doubt, reply "image". Only reply with "image" or "chat", nothing else.`;
+When in doubt between "new_image" and "image", reply "new_image". Only reply with "image", "chat", or "new_image", nothing else.`;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
