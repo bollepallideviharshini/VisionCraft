@@ -18,10 +18,11 @@ const STYLES = [
 interface PromptBarProps {
   onGenerate: (prompt: string, aspectRatio: string, style: string) => void;
   isGenerating: boolean;
+  initialPrompt?: string;
 }
 
-export default function PromptBar({ onGenerate, isGenerating }: PromptBarProps) {
-  const [prompt, setPrompt] = useState("");
+export default function PromptBar({ onGenerate, isGenerating, initialPrompt }: PromptBarProps) {
+  const [prompt, setPrompt] = useState(initialPrompt || "");
   const [aspectRatio, setAspectRatio] = useState("1:1");
   const [selectedStyle, setSelectedStyle] = useState("");
 

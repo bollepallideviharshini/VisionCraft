@@ -98,7 +98,7 @@ export default function Index() {
         <PromptBar
           onGenerate={handleGenerate}
           isGenerating={isGenerating}
-          key={inspirationPrompt}
+          initialPrompt={inspirationPrompt}
         />
 
         {/* Generated Image Preview */}
