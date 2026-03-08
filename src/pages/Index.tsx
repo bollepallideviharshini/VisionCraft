@@ -64,12 +64,12 @@ export default function Index() {
       }));
   }, [messages]);
 
-  const generateImage = useCallback(async (
-  prompt: string,
-  aspectRatio: string,
-  style: string,
-  options: {variationMode?: boolean;skipUserBubble?: boolean;} = {}) =>
-  {
+  const handlePrompt = useCallback(async (
+    prompt: string,
+    aspectRatio: string,
+    style: string,
+    options: { variationMode?: boolean; skipUserBubble?: boolean; forceImage?: boolean } = {}
+  ) => {
     if (!user && !hasCredits) {
       setShowLimitModal(true);
       return;
@@ -80,15 +80,15 @@ export default function Index() {
 
     if (!options.skipUserBubble) {
       setMessages((prev) => [
-      ...prev,
-      { id: userMsgId, role: "user", prompt, aspectRatio, style: style || undefined, timestamp: new Date() },
-      { id: aiMsgId, role: "assistant", prompt, isGenerating: true, timestamp: new Date() }]
-      );
+        ...prev,
+        { id: userMsgId, role: "user", prompt, aspectRatio, style: style || undefined, timestamp: new Date() },
+        { id: aiMsgId, role: "assistant", prompt, isGenerating: true, generatingLabel: "Thinking...", timestamp: new Date() },
+      ]);
     } else {
       setMessages((prev) => [
-      ...prev,
-      { id: aiMsgId, role: "assistant", prompt, isGenerating: true, timestamp: new Date() }]
-      );
+        ...prev,
+        { id: aiMsgId, role: "assistant", prompt, isGenerating: true, generatingLabel: "Painting your vision...", timestamp: new Date() },
+      ]);
     }
 
     setIsGenerating(true);
@@ -103,17 +103,43 @@ export default function Index() {
           aspectRatio,
           isGuest: !user,
           chatHistory,
-          variationMode: options.variationMode || false
-        }
+          variationMode: options.variationMode || false,
+          forceImage: options.forceImage || false,
+        },
       });
 
       if (error) throw error;
+
+      // Handle chat (text) response
+      if (data?.type === "chat") {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === aiMsgId
+              ? { ...m, textResponse: data.textResponse, isGenerating: false, generatingLabel: undefined }
+              : m
+          )
+        );
+        return;
+      }
+
+      // Handle image response
       if (!data?.imageUrl) throw new Error("No image returned");
 
+      // Update the generating label before resolving
       setMessages((prev) =>
-      prev.map((m) =>
-      m.id === aiMsgId ? { ...m, imageUrl: data.imageUrl, isGenerating: false } : m
-      )
+        prev.map((m) =>
+          m.id === aiMsgId
+            ? { ...m, generatingLabel: "Painting your vision..." }
+            : m
+        )
+      );
+
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === aiMsgId
+            ? { ...m, imageUrl: data.imageUrl, isGenerating: false, generatingLabel: undefined }
+            : m
+        )
       );
 
       if (!user) {
