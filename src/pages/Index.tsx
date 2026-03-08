@@ -182,33 +182,58 @@ export default function Index() {
 
         toast({ title: "Done", description: "Image generated." });
       } else {
-        // Multi-image: progressive loading — images appear one by one
-        // Set up the message with imageSlots and empty imageUrls
+        // Multi-image: progressive loading with style injection
         setMessages((prev) =>
           prev.map((m) =>
             m.id === aiMsgId
-              ? { ...m, imageUrls: [], imageSlots: quantity, isGenerating: true, generatingLabel: `Painting ${quantity} visions...` }
+              ? { ...m, imageUrls: [], imageSlots: quantity, failedSlots: [], isGenerating: true, generatingLabel: `Painting ${quantity} visions...` }
               : m
           )
         );
 
-        // Seed variations for prompt diversity
-        const seedVariations = [
-          ", unique variation seed-alpha, slightly different composition",
-          ", unique variation seed-beta, from a subtly different angle",
-          ", unique variation seed-gamma, with alternative lighting mood",
-          ", unique variation seed-delta, with a fresh creative twist",
+        // Style variations: if user mentions styles or we're doing multi, inject unique styles
+        const styleVariations = [
+          ", traditional hand-painted style",
+          ", modern digital vector style",
+          ", rich oil painting style",
+          ", delicate watercolor style",
         ];
 
-        const appendImage = (url: string) => {
+        // Composition variations as fallback seeds
+        const seedVariations = [
+          ", unique composition with warm tones",
+          ", alternative angle with cool palette",
+          ", dramatic lighting with bold contrast",
+          ", soft ethereal mood with muted colors",
+        ];
+
+        const appendImageAtSlot = (url: string, slotIdx: number) => {
           setMessages((prev) =>
             prev.map((m) => {
               if (m.id !== aiMsgId) return m;
               const updated = [...(m.imageUrls || []), url];
-              const done = updated.length >= quantity;
+              const failedCount = (m.failedSlots || []).length;
+              const done = updated.length + failedCount >= quantity;
               return {
                 ...m,
                 imageUrls: updated,
+                isGenerating: !done,
+                generatingLabel: done ? undefined : `${updated.length}/${quantity} ready...`,
+              };
+            })
+          );
+        };
+
+        const markSlotFailed = (slotIdx: number) => {
+          setMessages((prev) =>
+            prev.map((m) => {
+              if (m.id !== aiMsgId) return m;
+              const failed = [...(m.failedSlots || []), slotIdx];
+              const successCount = (m.imageUrls || []).length;
+              const done = successCount + failed.length >= quantity;
+              return {
+                ...m,
+                failedSlots: failed,
                 isGenerating: !done,
                 generatingLabel: done ? undefined : m.generatingLabel,
               };
@@ -216,38 +241,48 @@ export default function Index() {
           );
         };
 
-        // Fire all requests in parallel, but update UI as each resolves
+        // Detect if user wants different styles
+        const wantsStyles = /style|variation|version|different/i.test(prompt);
+
         const promises = Array.from({ length: quantity }, (_, idx) => {
-          const variation = seedVariations[idx % seedVariations.length];
-          return generateSingle(`${fullPrompt}${variation}`, aspectRatio, chatHistory, { variationMode: true, forceImage: true })
+          const suffix = wantsStyles
+            ? styleVariations[idx % styleVariations.length]
+            : seedVariations[idx % seedVariations.length];
+
+          return generateSingle(`${fullPrompt}${suffix}`, aspectRatio, chatHistory, { variationMode: true, forceImage: true })
             .then((data) => {
               if (data?.imageUrl) {
-                appendImage(data.imageUrl);
+                appendImageAtSlot(data.imageUrl, idx);
                 if (!user) {
                   consumeCredit();
                   saveGuestImage(data.imageUrl, prompt, aspectRatio, style || null);
                 }
+              } else {
+                console.warn(`Slot ${idx}: No image returned`, data);
+                markSlotFailed(idx);
               }
               return data;
             })
-            .catch(() => null);
+            .catch((err) => {
+              console.error(`Slot ${idx} failed:`, err);
+              markSlotFailed(idx);
+              return null;
+            });
         });
 
         await Promise.all(promises);
 
-        // Check if any images were generated
+        // Final cleanup
         setMessages((prev) => {
           const msg = prev.find((m) => m.id === aiMsgId);
-          if (msg && (!msg.imageUrls || msg.imageUrls.length === 0)) {
+          if (msg && (!msg.imageUrls || msg.imageUrls.length === 0) && (!msg.failedSlots || msg.failedSlots.length === 0)) {
             return prev.filter((m) => m.id !== aiMsgId);
           }
-          // Ensure isGenerating is false
           return prev.map((m) =>
-            m.id === aiMsgId ? { ...m, isGenerating: false, generatingLabel: undefined, imageSlots: undefined } : m
+            m.id === aiMsgId ? { ...m, isGenerating: false, generatingLabel: undefined } : m
           );
         });
 
-        const finalMsg = messages.find((m) => m.id === aiMsgId);
         toast({ title: "Done", description: "Images generated." });
       }
     } catch (err: any) {
@@ -269,6 +304,48 @@ export default function Index() {
   const handleVariations = useCallback((_messageId: string, prompt: string, aspectRatio?: string, style?: string) => {
     handlePrompt(prompt, aspectRatio || "1:1", style || "", { quantity: 4, skipUserBubble: true, forceImage: true });
   }, [handlePrompt]);
+
+  const handleRetrySlot = useCallback(async (messageId: string, slotIndex: number) => {
+    const msg = messages.find((m) => m.id === messageId);
+    if (!msg) return;
+
+    // Remove from failed list
+    setMessages((prev) =>
+      prev.map((m) => {
+        if (m.id !== messageId) return m;
+        return { ...m, failedSlots: (m.failedSlots || []).filter((i) => i !== slotIndex), isGenerating: true, generatingLabel: "Retrying..." };
+      })
+    );
+
+    try {
+      const chatHistory = buildChatHistory();
+      const data = await generateSingle(msg.prompt, msg.aspectRatio || "1:1", chatHistory, { forceImage: true });
+      if (data?.imageUrl) {
+        setMessages((prev) =>
+          prev.map((m) => {
+            if (m.id !== messageId) return m;
+            const updated = [...(m.imageUrls || []), data.imageUrl!];
+            const failedCount = (m.failedSlots || []).length;
+            const done = updated.length + failedCount >= (m.imageSlots || 1);
+            return { ...m, imageUrls: updated, isGenerating: !done, generatingLabel: done ? undefined : m.generatingLabel };
+          })
+        );
+        if (!user) {
+          consumeCredit();
+          saveGuestImage(data.imageUrl, msg.prompt, msg.aspectRatio || "1:1", msg.style || null);
+        }
+      } else {
+        // Re-mark as failed
+        setMessages((prev) =>
+          prev.map((m) => m.id !== messageId ? m : { ...m, failedSlots: [...(m.failedSlots || []), slotIndex], isGenerating: false })
+        );
+      }
+    } catch {
+      setMessages((prev) =>
+        prev.map((m) => m.id !== messageId ? m : { ...m, failedSlots: [...(m.failedSlots || []), slotIndex], isGenerating: false })
+      );
+    }
+  }, [messages, buildChatHistory, generateSingle, user, consumeCredit, saveGuestImage]);
 
   const handleOpenRefine = useCallback((messageId: string, imageUrl: string, prompt: string) => {
     setRefineMessageId(messageId);
@@ -380,6 +457,7 @@ export default function Index() {
                   onRegenerate={handleRegenerate}
                   onVariations={handleVariations}
                   onRefine={handleOpenRefine}
+                  onRetrySlot={handleRetrySlot}
                 />
               )}
             </div>

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Download, Copy, Share2, RefreshCw, Grid2x2, Wand2, Brush, Maximize2 } from "lucide-react";
+import { Download, Copy, Share2, RefreshCw, Grid2x2, Wand2, Brush, Maximize2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -13,6 +13,8 @@ export interface ChatMessage {
   imageUrls?: string[];
   /** For progressive loading: total slots expected */
   imageSlots?: number;
+  /** Track failed slots for retry */
+  failedSlots?: number[];
   textResponse?: string;
   isGenerating?: boolean;
   generatingLabel?: string;
@@ -26,6 +28,7 @@ interface ChatThreadProps {
   onRegenerate?: (messageId: string, prompt: string, aspectRatio?: string, style?: string) => void;
   onVariations?: (messageId: string, prompt: string, aspectRatio?: string, style?: string) => void;
   onRefine?: (messageId: string, imageUrl: string, prompt: string) => void;
+  onRetrySlot?: (messageId: string, slotIndex: number) => void;
 }
 
 const ASPECT_RATIO_CLASS: Record<string, string> = {
@@ -122,7 +125,7 @@ function CrossFadeImage({ src, alt, className }: { src: string; alt: string; cla
   );
 }
 
-export default function ChatThread({ messages, onRegenerate, onVariations, onRefine }: ChatThreadProps) {
+export default function ChatThread({ messages, onRegenerate, onVariations, onRefine, onRetrySlot }: ChatThreadProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const [expandedImage, setExpandedImage] = useState<string | null>(null);
 
@@ -160,40 +163,68 @@ export default function ChatThread({ messages, onRegenerate, onVariations, onRef
     return undefined;
   };
 
-  const renderImageGrid = (urls: string[], prompt: string, msgId: string, totalSlots?: number) => {
-    const total = totalSlots || urls.length;
+  const renderImageGrid = (msg: ChatMessage) => {
+    const urls = msg.imageUrls || [];
+    const total = msg.imageSlots || urls.length;
     const cols = total === 1 ? "grid-cols-1" : total === 3 ? "grid-cols-3" : "grid-cols-2";
-    const items: (string | null)[] = [...urls];
-    // Fill remaining slots with null (skeleton placeholders)
-    while (items.length < total) items.push(null);
+    const failedSlots = msg.failedSlots || [];
+
+    // Build items array: use urls by index, mark failed, fill remaining with null
+    const items: ({ type: "image"; url: string } | { type: "failed"; index: number } | { type: "loading" })[] = [];
+    let urlIdx = 0;
+    for (let i = 0; i < total; i++) {
+      if (failedSlots.includes(i)) {
+        items.push({ type: "failed", index: i });
+      } else if (urlIdx < urls.length) {
+        items.push({ type: "image", url: urls[urlIdx] });
+        urlIdx++;
+      } else {
+        items.push({ type: "loading" });
+      }
+    }
 
     return (
       <div className={`grid ${cols} gap-1`}>
-        {items.map((url, idx) => (
+        {items.map((item, idx) => (
           <div key={idx} className="group relative overflow-hidden rounded-sm">
-            {url ? (
+            {item.type === "image" ? (
               <>
                 <CrossFadeImage
-                  src={url}
-                  alt={`${prompt} - ${idx + 1}`}
+                  src={item.url}
+                  alt={`${msg.prompt} - ${idx + 1}`}
                   className="w-full object-cover aspect-square"
                 />
                 <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-end justify-center opacity-0 group-hover:opacity-100">
                   <div className="flex items-center gap-0.5 pb-2">
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-white/80 hover:text-white hover:bg-white/20" onClick={() => handleDownload(url)} title="Download">
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-white/80 hover:text-white hover:bg-white/20" onClick={() => handleDownload(item.url)} title="Download">
                       <Download className="h-3.5 w-3.5" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-white/80 hover:text-white hover:bg-white/20" onClick={() => setExpandedImage(url)} title="Expand">
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-white/80 hover:text-white hover:bg-white/20" onClick={() => setExpandedImage(item.url)} title="Expand">
                       <Maximize2 className="h-3.5 w-3.5" />
                     </Button>
                     {onRefine && (
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-white/80 hover:text-white hover:bg-white/20" onClick={() => onRefine(msgId, url, prompt)} title="Refine">
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-white/80 hover:text-white hover:bg-white/20" onClick={() => onRefine(msg.id, item.url, msg.prompt)} title="Refine">
                         <Wand2 className="h-3.5 w-3.5" />
                       </Button>
                     )}
                   </div>
                 </div>
               </>
+            ) : item.type === "failed" ? (
+              <div className="aspect-square flex flex-col items-center justify-center bg-destructive/10 border border-destructive/20 rounded-sm gap-2">
+                <AlertCircle className="h-4 w-4 text-destructive" />
+                <span className="text-[10px] text-destructive font-mono">Failed</span>
+                {onRetrySlot && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-2 text-[10px] font-mono text-destructive hover:text-destructive hover:bg-destructive/10"
+                    onClick={() => onRetrySlot(msg.id, item.index)}
+                  >
+                    <RefreshCw className="h-3 w-3 mr-1" /> Retry
+                  </Button>
+                )}
+              </div>
             ) : (
               <div className="skeleton-shimmer aspect-square flex items-center justify-center">
                 <div className="flex items-center gap-2">
@@ -299,10 +330,10 @@ export default function ChatThread({ messages, onRegenerate, onVariations, onRef
                 )}
 
                 {/* Multi-image grid (including progressive loading) */}
-                {msg.imageUrls && msg.imageUrls.length > 0 && (
+                {(msg.imageUrls && msg.imageUrls.length > 0) || (msg.failedSlots && msg.failedSlots.length > 0) ? (
                   <>
                     <div className="rounded-md border border-[hsl(var(--ai-bubble-border))] bg-[hsl(var(--ai-bubble))] overflow-hidden">
-                      {renderImageGrid(msg.imageUrls, msg.prompt, msg.id, msg.imageSlots)}
+                      {renderImageGrid(msg)}
                       <div className="flex items-center justify-between px-3 py-2 border-t border-[hsl(var(--ai-bubble-border))]">
                         <p className="text-[11px] text-muted-foreground font-mono truncate max-w-[50%]">
                           {msg.prompt}
@@ -322,7 +353,7 @@ export default function ChatThread({ messages, onRegenerate, onVariations, onRef
                       </div>
                     )}
                   </>
-                )}
+                ) : null}
 
                 {/* Generating state with no images yet — skeleton loader */}
                 {msg.isGenerating && (!msg.imageUrls || msg.imageUrls.length === 0) && (
