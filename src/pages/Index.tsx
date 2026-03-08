@@ -157,18 +157,18 @@ export default function Index() {
   }, [user, hasCredits, consumeCredit, saveGuestImage, buildChatHistory]);
 
   const handleGenerate = useCallback((prompt: string, aspectRatio: string, style: string) => {
-    generateImage(prompt, aspectRatio, style);
-  }, [generateImage]);
+    handlePrompt(prompt, aspectRatio, style);
+  }, [handlePrompt]);
 
   const handleRegenerate = useCallback((_messageId: string, prompt: string, aspectRatio?: string, style?: string) => {
-    generateImage(prompt, aspectRatio || "1:1", style || "", { skipUserBubble: true });
-  }, [generateImage]);
+    handlePrompt(prompt, aspectRatio || "1:1", style || "", { skipUserBubble: true, forceImage: true });
+  }, [handlePrompt]);
 
   const handleVariations = useCallback(async (_messageId: string, prompt: string, aspectRatio?: string, style?: string) => {
     for (let i = 0; i < 4; i++) {
-      await generateImage(prompt, aspectRatio || "1:1", style || "", { variationMode: true, skipUserBubble: i > 0 });
+      await handlePrompt(prompt, aspectRatio || "1:1", style || "", { variationMode: true, skipUserBubble: i > 0, forceImage: true });
     }
-  }, [generateImage]);
+  }, [handlePrompt]);
 
   const handleOpenRefine = useCallback((messageId: string, imageUrl: string, prompt: string) => {
     setRefineMessageId(messageId);
