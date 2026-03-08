@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
 import { Sparkles, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
-
 const ASPECT_RATIOS = [
   { label: "1:1", value: "1:1", desc: "Square" },
   { label: "16:9", value: "16:9", desc: "Wide" },
