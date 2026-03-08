@@ -77,7 +77,7 @@ serve(async (req) => {
       }
     }
 
-    const { prompt, aspectRatio = "1:1", chatHistory = [], variationMode = false, forceImage = false } = await req.json();
+    const { prompt, aspectRatio = "1:1", chatHistory = [], variationMode = false, forceImage = false, clearContext = false } = await req.json();
     if (!prompt || typeof prompt !== "string" || prompt.length > 2000) {
       throw new Error("Invalid prompt");
     }
