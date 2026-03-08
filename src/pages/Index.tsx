@@ -8,7 +8,7 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import Navbar from "@/components/Navbar";
 import ChatThread, { type ChatMessage } from "@/components/ChatThread";
 import ChatPromptBar from "@/components/ChatPromptBar";
-import InspirationFeed from "@/components/InspirationFeed";
+
 import GuestLimitModal from "@/components/GuestLimitModal";
 import GenerationSidebar from "@/components/GenerationSidebar";
 import RefineModal from "@/components/RefineModal";
@@ -18,7 +18,7 @@ export default function Index() {
   const { user } = useAuth();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [inspirationPrompt, setInspirationPrompt] = useState("");
+  const [_inspirationPrompt, setInspirationPrompt] = useState("");
   const [showLimitModal, setShowLimitModal] = useState(false);
 
   // Refine modal state
@@ -214,26 +214,22 @@ export default function Index() {
           <div className="flex-1 overflow-y-auto">
             <div className="mx-auto max-w-[800px] px-4 py-8">
               {messages.length === 0 ? (
-                <div className="flex flex-col items-center justify-center min-h-[55vh] space-y-8">
-                  <motion.div
-                    initial={{ opacity: 0, y: -16 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.5 }}
-                    className="text-center space-y-3"
-                  >
-                    <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-md border border-border bg-card mb-4">
-                      <Terminal className="h-5 w-5 text-muted-foreground" />
-                    </div>
-                    <h1 className="text-3xl md:text-4xl font-semibold tracking-tight text-foreground">
-                      VisionCraft
-                    </h1>
-                    <p className="text-sm text-muted-foreground max-w-sm mx-auto leading-relaxed">
-                      Describe an image and watch it come to life. Start typing or pick an inspiration below.
-                    </p>
-                  </motion.div>
-
-                  <InspirationFeed onSelect={(p) => setInspirationPrompt(p)} />
-                </div>
+                <motion.div
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.6, ease: "easeOut" }}
+                  className="flex flex-col items-center justify-center min-h-[60vh]"
+                >
+                  <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-lg border border-border/40 bg-card/50 mb-5">
+                    <Terminal className="h-4 w-4 text-muted-foreground/70" />
+                  </div>
+                  <h1 className="text-2xl font-semibold tracking-tight text-foreground mb-2">
+                    VisionCraft
+                  </h1>
+                  <p className="text-sm text-muted-foreground/70">
+                    What would you like to create today?
+                  </p>
+                </motion.div>
               ) : (
                 <ChatThread
                   messages={messages}
@@ -249,7 +245,7 @@ export default function Index() {
             <ChatPromptBar
               onGenerate={handleGenerate}
               isGenerating={isGenerating}
-              initialPrompt={inspirationPrompt}
+              initialPrompt={undefined}
               guestCreditsRemaining={!user ? remaining : undefined}
               guestCreditsMax={!user ? maxCredits : undefined}
             />
