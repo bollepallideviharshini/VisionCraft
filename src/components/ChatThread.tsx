@@ -330,10 +330,10 @@ export default function ChatThread({ messages, onRegenerate, onVariations, onRef
                 )}
 
                 {/* Multi-image grid (including progressive loading) */}
-                {msg.imageUrls && msg.imageUrls.length > 0 && (
+                {(msg.imageUrls && msg.imageUrls.length > 0) || (msg.failedSlots && msg.failedSlots.length > 0) ? (
                   <>
                     <div className="rounded-md border border-[hsl(var(--ai-bubble-border))] bg-[hsl(var(--ai-bubble))] overflow-hidden">
-                      {renderImageGrid(msg.imageUrls, msg.prompt, msg.id, msg.imageSlots)}
+                      {renderImageGrid(msg)}
                       <div className="flex items-center justify-between px-3 py-2 border-t border-[hsl(var(--ai-bubble-border))]">
                         <p className="text-[11px] text-muted-foreground font-mono truncate max-w-[50%]">
                           {msg.prompt}
