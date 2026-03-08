@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Download, Copy, Share2, RefreshCw, Grid2x2, Wand2, Paintbrush, Maximize2 } from "lucide-react";
+import { Download, Copy, Share2, RefreshCw, Grid2x2, Wand2, Brush, Maximize2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -270,7 +270,7 @@ export default function ChatThread({ messages, onRegenerate, onVariations, onRef
                 {msg.textResponse && !msg.imageUrl && !msg.imageUrls && !msg.isGenerating && (
                   <div className="flex items-start gap-2.5">
                     <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-accent/60 mt-0.5">
-                      <Paintbrush className="h-3.5 w-3.5 text-accent-foreground" />
+                      <Brush className="h-3.5 w-3.5 text-accent-foreground" />
                     </div>
                     <div className="rounded-md border border-border/30 bg-white px-4 py-3">
                       <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">
