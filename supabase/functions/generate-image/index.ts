@@ -254,8 +254,9 @@ serve(async (req) => {
     const imageData = aiData.choices?.[0]?.message?.images?.[0]?.image_url?.url;
 
     if (!imageData) {
-      // The model returned text but no image — fall back to a chat response
       const textResponse = aiData.choices?.[0]?.message?.content || "";
+      console.warn("[generate-image] No image in response. Text:", textResponse.substring(0, 200));
+      console.warn("[generate-image] Possible safety block:", /safety|policy|cannot|unable/i.test(textResponse));
       
       if (textResponse) {
         // Model had something to say (safety filter, clarification, etc.)
