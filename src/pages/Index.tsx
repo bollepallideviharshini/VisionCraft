@@ -11,7 +11,7 @@ import ChatPromptBar from "@/components/ChatPromptBar";
 import InspirationFeed from "@/components/InspirationFeed";
 import GuestLimitModal from "@/components/GuestLimitModal";
 import GenerationSidebar from "@/components/GenerationSidebar";
-import { Terminal } from "lucide-react";
+import { Terminal, Menu } from "lucide-react";
 
 export default function Index() {
   const { user } = useAuth();
@@ -92,7 +92,7 @@ export default function Index() {
   }, [user, hasCredits, consumeCredit, saveGuestImage]);
 
   return (
-    <SidebarProvider>
+    <SidebarProvider defaultOpen={false}>
       <div className="flex h-screen w-full bg-background">
         <GenerationSidebar messages={messages} />
 
@@ -100,10 +100,12 @@ export default function Index() {
           <Navbar />
           <GuestLimitModal open={showLimitModal} onOpenChange={setShowLimitModal} />
 
-          {/* Header with sidebar trigger */}
-          <div className="flex items-center border-b border-border/30 px-4 h-10">
-            <SidebarTrigger className="text-muted-foreground hover:text-foreground" />
-          </div>
+           {/* Header with sidebar trigger */}
+           <div className="flex items-center border-b border-border/30 px-4 h-10">
+             <SidebarTrigger className="text-muted-foreground hover:text-foreground">
+               <Menu className="h-4 w-4" />
+             </SidebarTrigger>
+           </div>
 
           {/* Chat area */}
           <div className="flex-1 overflow-y-auto">

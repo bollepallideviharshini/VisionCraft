@@ -25,7 +25,7 @@ export default function GenerationSidebar({ messages }: GenerationSidebarProps) 
   );
 
   return (
-    <Sidebar collapsible="icon" className="border-r border-border/40">
+    <Sidebar collapsible="offcanvas" className="border-r border-border/40 backdrop-blur-xl bg-sidebar-background/80">
       <SidebarContent className="pt-4">
         <SidebarGroup>
           {!collapsed && (
