@@ -25,17 +25,20 @@ serve(async (req) => {
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-    // Get user from auth header
+    // Get user from auth header (optional for guests)
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) throw new Error("Not authenticated");
-
     const supabaseClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     const anonClient = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_PUBLISHABLE_KEY")!);
     
-    const { data: { user }, error: authError } = await anonClient.auth.getUser(
-      authHeader.replace("Bearer ", "")
-    );
-    if (authError || !user) throw new Error("Invalid authentication");
+    let user = null;
+    if (authHeader) {
+      const { data: { user: authUser }, error: authError } = await anonClient.auth.getUser(
+        authHeader.replace("Bearer ", "")
+      );
+      if (!authError && authUser) {
+        user = authUser;
+      }
+    }
 
     const { prompt, aspectRatio = "1:1" } = await req.json();
     if (!prompt || typeof prompt !== "string" || prompt.length > 2000) {
