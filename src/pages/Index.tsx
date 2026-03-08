@@ -1,13 +1,15 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { useGuestCredits } from "@/hooks/use-guest-credits";
 import Navbar from "@/components/Navbar";
 import PromptBar from "@/components/PromptBar";
 import InspirationFeed from "@/components/InspirationFeed";
 import ImagePreview from "@/components/ImagePreview";
+import GuestLimitModal from "@/components/GuestLimitModal";
 
 export default function Index() {
   const { user } = useAuth();
@@ -18,15 +20,41 @@ export default function Index() {
   const [isPublic, setIsPublic] = useState(false);
   const [currentImageId, setCurrentImageId] = useState<string | null>(null);
   const [inspirationPrompt, setInspirationPrompt] = useState("");
+  const [showLimitModal, setShowLimitModal] = useState(false);
 
-  const handleInspirationSelect = (prompt: string) => {
-    setInspirationPrompt(prompt);
-  };
+  const { remaining, maxCredits, hasCredits, consumeCredit, saveGuestImage, getGuestImages, clearGuestData } = useGuestCredits();
+
+  // Transfer guest images when user signs up/logs in
+  useEffect(() => {
+    if (!user) return;
+    const guestImages = getGuestImages();
+    if (guestImages.length === 0) return;
+
+    const transferImages = async () => {
+      for (const img of guestImages) {
+        await supabase.from("generated_images").insert({
+          user_id: user.id,
+          prompt: img.prompt,
+          image_url: img.imageUrl,
+          aspect_ratio: img.aspectRatio,
+          style: img.style,
+          is_public: false,
+        });
+      }
+      clearGuestData();
+      toast({ title: "Guest images transferred!", description: `${guestImages.length} image(s) added to your library.` });
+    };
+
+    transferImages();
+  }, [user]);
 
   const handleGenerate = useCallback(async (prompt: string, aspectRatio: string, style: string) => {
+    // Guest flow: check credits
     if (!user) {
-      navigate("/auth");
-      return;
+      if (!hasCredits) {
+        setShowLimitModal(true);
+        return;
+      }
     }
 
     setIsGenerating(true);
@@ -37,22 +65,28 @@ export default function Index() {
       const fullPrompt = style ? `${prompt}, in ${style} style` : prompt;
 
       const { data, error } = await supabase.functions.invoke("generate-image", {
-        body: { prompt: fullPrompt, aspectRatio },
+        body: { prompt: fullPrompt, aspectRatio, isGuest: !user },
       });
 
       if (error) throw error;
       if (!data?.imageUrl) throw new Error("No image returned");
 
       setGeneratedImage(data.imageUrl);
-      setCurrentImageId(data.imageId);
+      setCurrentImageId(data.imageId || null);
       setIsPublic(false);
+
+      if (!user) {
+        consumeCredit();
+        saveGuestImage(data.imageUrl, prompt, aspectRatio, style || null);
+      }
+
       toast({ title: "Image generated!", description: "Your creation is ready." });
     } catch (err: any) {
       toast({ title: "Generation failed", description: err.message, variant: "destructive" });
     } finally {
       setIsGenerating(false);
     }
-  }, [user, navigate]);
+  }, [user, hasCredits, consumeCredit, saveGuestImage]);
 
   const handleTogglePublic = async () => {
     if (!currentImageId) return;
@@ -70,6 +104,7 @@ export default function Index() {
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
+      <GuestLimitModal open={showLimitModal} onOpenChange={setShowLimitModal} />
 
       {/* Ambient background */}
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
@@ -99,6 +134,8 @@ export default function Index() {
           onGenerate={handleGenerate}
           isGenerating={isGenerating}
           initialPrompt={inspirationPrompt}
+          guestCreditsRemaining={!user ? remaining : undefined}
+          guestCreditsMax={!user ? maxCredits : undefined}
         />
 
         {/* Generated Image Preview */}
@@ -106,7 +143,7 @@ export default function Index() {
           imageUrl={generatedImage}
           isGenerating={isGenerating}
           prompt={lastPrompt}
-          onTogglePublic={handleTogglePublic}
+          onTogglePublic={user ? handleTogglePublic : undefined}
           isPublic={isPublic}
         />
 

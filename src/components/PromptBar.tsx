@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
 import { Sparkles, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
-
 const ASPECT_RATIOS = [
   { label: "1:1", value: "1:1", desc: "Square" },
   { label: "16:9", value: "16:9", desc: "Wide" },
@@ -19,9 +19,11 @@ interface PromptBarProps {
   onGenerate: (prompt: string, aspectRatio: string, style: string) => void;
   isGenerating: boolean;
   initialPrompt?: string;
+  guestCreditsRemaining?: number;
+  guestCreditsMax?: number;
 }
 
-export default function PromptBar({ onGenerate, isGenerating, initialPrompt }: PromptBarProps) {
+export default function PromptBar({ onGenerate, isGenerating, initialPrompt, guestCreditsRemaining, guestCreditsMax }: PromptBarProps) {
   const [prompt, setPrompt] = useState(initialPrompt || "");
   const [aspectRatio, setAspectRatio] = useState("1:1");
   const [selectedStyle, setSelectedStyle] = useState("");
@@ -49,6 +51,18 @@ export default function PromptBar({ onGenerate, isGenerating, initialPrompt }: P
       transition={{ duration: 0.6, delay: 0.2 }}
       className="w-full max-w-3xl mx-auto space-y-4"
     >
+      {/* Guest credits badge */}
+      {guestCreditsRemaining !== undefined && guestCreditsMax !== undefined && (
+        <div className="flex justify-end">
+          <Badge
+            variant={guestCreditsRemaining > 0 ? "secondary" : "destructive"}
+            className="text-xs px-3 py-1"
+          >
+            Remaining Credits: {guestCreditsRemaining}/{guestCreditsMax}
+          </Badge>
+        </div>
+      )}
+
       {/* Prompt input */}
       <div className="relative gradient-border rounded-2xl">
         <Textarea

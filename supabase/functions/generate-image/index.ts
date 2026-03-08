@@ -25,17 +25,20 @@ serve(async (req) => {
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-    // Get user from auth header
+    // Get user from auth header (optional for guests)
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) throw new Error("Not authenticated");
-
     const supabaseClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     const anonClient = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_PUBLISHABLE_KEY")!);
     
-    const { data: { user }, error: authError } = await anonClient.auth.getUser(
-      authHeader.replace("Bearer ", "")
-    );
-    if (authError || !user) throw new Error("Invalid authentication");
+    let user = null;
+    if (authHeader) {
+      const { data: { user: authUser }, error: authError } = await anonClient.auth.getUser(
+        authHeader.replace("Bearer ", "")
+      );
+      if (!authError && authUser) {
+        user = authUser;
+      }
+    }
 
     const { prompt, aspectRatio = "1:1" } = await req.json();
     if (!prompt || typeof prompt !== "string" || prompt.length > 2000) {
@@ -96,7 +99,9 @@ serve(async (req) => {
     const base64 = base64Match[2];
     const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
 
-    const fileName = `${user.id}/${crypto.randomUUID()}.${ext}`;
+    // For guests, upload to a "guest" folder; for users, upload to their folder
+    const folder = user ? user.id : "guest";
+    const fileName = `${folder}/${crypto.randomUUID()}.${ext}`;
     const { error: uploadError } = await supabaseClient.storage
       .from("user_images")
       .upload(fileName, bytes, { contentType: `image/${ext}`, upsert: false });
@@ -112,25 +117,30 @@ serve(async (req) => {
 
     const imageUrl = urlData.publicUrl;
 
-    // Save to database
-    const { data: insertData, error: insertError } = await supabaseClient
-      .from("generated_images")
-      .insert({
-        user_id: user.id,
-        prompt,
-        image_url: imageUrl,
-        aspect_ratio: aspectRatio,
-        is_public: false,
-      })
-      .select("id")
-      .single();
+    let imageId = null;
 
-    if (insertError) {
-      console.error("Insert error:", insertError);
+    // Only save to database for authenticated users
+    if (user) {
+      const { data: insertData, error: insertError } = await supabaseClient
+        .from("generated_images")
+        .insert({
+          user_id: user.id,
+          prompt,
+          image_url: imageUrl,
+          aspect_ratio: aspectRatio,
+          is_public: false,
+        })
+        .select("id")
+        .single();
+
+      if (insertError) {
+        console.error("Insert error:", insertError);
+      }
+      imageId = insertData?.id;
     }
 
     return new Response(
-      JSON.stringify({ imageUrl, imageId: insertData?.id }),
+      JSON.stringify({ imageUrl, imageId }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (e) {
