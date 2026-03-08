@@ -12,7 +12,8 @@ import InspirationFeed from "@/components/InspirationFeed";
 import GuestLimitModal from "@/components/GuestLimitModal";
 import GenerationSidebar from "@/components/GenerationSidebar";
 import RefineModal from "@/components/RefineModal";
-import { Menu, Brush } from "lucide-react";
+import { Menu, Brush, Trash2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 export default function Index() {
   const { user } = useAuth();
@@ -70,7 +71,7 @@ export default function Index() {
     aspectRatio: string,
     chatHistory: any[],
     options: { variationMode?: boolean; forceImage?: boolean } = {}
-  ): Promise<{ type: string; imageUrl?: string; textResponse?: string } | null> => {
+  ): Promise<{ type: string; imageUrl?: string; textResponse?: string; contextShift?: string } | null> => {
     const { data, error } = await supabase.functions.invoke("generate-image", {
       body: {
         prompt,
@@ -151,6 +152,17 @@ export default function Index() {
             )
           );
           return;
+        }
+
+        // If the AI acknowledged a topic switch, show it briefly before the image
+        if (data.contextShift) {
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === aiMsgId
+                ? { ...m, textResponse: data.contextShift, isGenerating: true, generatingLabel: "Painting your vision..." }
+                : m
+            )
+          );
         }
 
         if (!data.imageUrl) throw new Error("No image returned");
@@ -320,10 +332,23 @@ export default function Index() {
           <Navbar />
           <GuestLimitModal open={showLimitModal} onOpenChange={setShowLimitModal} />
 
-          <div className="flex items-center border-b border-border/30 px-4 h-10">
+          <div className="flex items-center border-b border-border/30 px-4 h-10 justify-between">
             <SidebarTrigger className="text-muted-foreground hover:text-foreground">
               <Menu className="h-4 w-4" />
             </SidebarTrigger>
+            {messages.length > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2.5 text-[11px] font-mono text-muted-foreground hover:text-foreground gap-1.5"
+                onClick={() => {
+                  setMessages([]);
+                  toast({ title: "Chat cleared", description: "Starting fresh!" });
+                }}
+              >
+                <Trash2 className="h-3 w-3" /> New Chat
+              </Button>
+            )}
           </div>
 
           <div className="flex-1 overflow-y-auto">

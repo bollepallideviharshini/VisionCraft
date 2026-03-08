@@ -31,20 +31,25 @@ Core principles:
 - If a user describes a person, scene, or visual concept, encourage them to generate it immediately rather than over-explaining.
 - Use confident, evocative language. Think like a creative director pitching a vision, not a chatbot answering questions.`;
 
-const INTENT_SYSTEM = `You are an intent classifier for a creative AI image generation app. Reply with EXACTLY one word: "image" or "chat".
+const INTENT_SYSTEM = `You are an intent classifier for a creative AI image generation app. Reply with EXACTLY one word: "image", "chat", or "new_image".
+
+Reply "new_image" if the user:
+- Starts a completely NEW topic/subject unrelated to previous conversation (e.g., switching from "mother and son" to "Phad art")
+- Uses words like "Create", "Generate", "Design", "Draw", "Make" followed by a new subject
+- Describes a new scene, style, or concept that does NOT reference the previous image
+- Introduces a brand-new noun or art style with no connection to prior context
 
 Reply "image" if the user:
-- Wants to create, draw, generate, design, paint, or visualize anything
-- Describes a visual scene, object, person, or concept (e.g., "Virat Kohli in a cyberpunk city", "a sunset over mountains")
-- Mentions a celebrity, landmark, or art style in a way that implies they want a visual
-- Asks for a portrait, poster, logo, illustration, or any visual output
+- Wants to MODIFY or REFINE a previous image (e.g., "make it red", "add a hat", "change the background")
+- Explicitly references the previous image ("apply this style to the last one", "change the previous image")
+- Uses words like "more", "less", "bigger", "different angle" suggesting iteration on existing work
 
 Reply "chat" ONLY if the user is:
 - Greeting (hi, hello) without describing anything visual
 - Asking a non-visual question (how does this work?, what can you do?)
 - Having pure conversation with no visual intent
 
-When in doubt, reply "image". Only reply with "image" or "chat", nothing else.`;
+When in doubt between "new_image" and "image", reply "new_image". Only reply with "image", "chat", or "new_image", nothing else.`;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -72,7 +77,7 @@ serve(async (req) => {
       }
     }
 
-    const { prompt, aspectRatio = "1:1", chatHistory = [], variationMode = false, forceImage = false } = await req.json();
+    const { prompt, aspectRatio = "1:1", chatHistory = [], variationMode = false, forceImage = false, clearContext = false } = await req.json();
     if (!prompt || typeof prompt !== "string" || prompt.length > 2000) {
       throw new Error("Invalid prompt");
     }
@@ -100,6 +105,8 @@ serve(async (req) => {
         const classification = intentData.choices?.[0]?.message?.content?.trim().toLowerCase();
         if (classification === "chat") {
           intent = "chat";
+        } else if (classification === "new_image") {
+          intent = "new_image";
         }
       }
     }
@@ -162,37 +169,45 @@ serve(async (req) => {
     }
 
     // --- Step 2b: Image generation ---
+    const isNewTopic = intent === "new_image" || clearContext;
     const dims = ASPECT_RATIO_MAP[aspectRatio] || ASPECT_RATIO_MAP["1:1"];
 
     const aiMessages: any[] = [];
 
-    aiMessages.push({
-      role: "user",
-      content: "You are an image generation AI. Generate images based on user descriptions. When the user refers to previous images or asks for modifications, use the conversation context to understand what they want changed.",
-    });
+    if (isNewTopic) {
+      // Hard reset: no history, fresh generation
+      aiMessages.push({
+        role: "user",
+        content: "You are an image generation AI. Generate a completely fresh, standalone image based only on the user's description below. Do not reference any previous context.",
+      });
+    } else {
+      aiMessages.push({
+        role: "user",
+        content: "You are an image generation AI. Generate images based on user descriptions. When the user refers to previous images or asks for modifications, use the conversation context to understand what they want changed.",
+      });
 
-    const recentHistory = (chatHistory as ChatHistoryItem[]).slice(-6);
-    for (const item of recentHistory) {
-      if (item.role === "user") {
-        aiMessages.push({ role: "user", content: `Previous request: ${item.prompt}` });
-      } else if (item.role === "assistant" && item.imageUrl) {
-        aiMessages.push({
-          role: "user",
-          content: [
-            { type: "text", text: "Here is the image that was generated from the previous request:" },
-            { type: "image_url", image_url: { url: item.imageUrl } },
-          ],
-        });
+      const recentHistory = (chatHistory as ChatHistoryItem[]).slice(-6);
+      for (const item of recentHistory) {
+        if (item.role === "user") {
+          aiMessages.push({ role: "user", content: `Previous request: ${item.prompt}` });
+        } else if (item.role === "assistant" && item.imageUrl) {
+          aiMessages.push({
+            role: "user",
+            content: [
+              { type: "text", text: "Here is the image that was generated from the previous request:" },
+              { type: "image_url", image_url: { url: item.imageUrl } },
+            ],
+          });
+        }
       }
     }
 
     const variationSuffix = variationMode
       ? " Create a slight variation of this concept with minor creative differences."
       : "";
-    const hasHistory = recentHistory.length > 0;
-    const contextPrefix = hasHistory
-      ? "Based on our conversation above, generate a new image: "
-      : "Generate a high-quality image: ";
+    const contextPrefix = isNewTopic
+      ? "Generate a high-quality image: "
+      : (chatHistory.length > 0 ? "Based on our conversation above, generate a new image: " : "Generate a high-quality image: ");
 
     aiMessages.push({
       role: "user",
@@ -307,8 +322,10 @@ serve(async (req) => {
       imageId = insertData?.id;
     }
 
+    const contextShift = isNewTopic ? "Switching gears! Generating a fresh creation for you now..." : undefined;
+
     return new Response(
-      JSON.stringify({ type: "image", imageUrl, imageId }),
+      JSON.stringify({ type: "image", imageUrl, imageId, contextShift }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (e) {
