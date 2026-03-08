@@ -457,6 +457,7 @@ export default function Index() {
                   onRegenerate={handleRegenerate}
                   onVariations={handleVariations}
                   onRefine={handleOpenRefine}
+                  onRetrySlot={handleRetrySlot}
                 />
               )}
             </div>
