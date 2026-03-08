@@ -19,6 +19,8 @@ interface PromptBarProps {
   onGenerate: (prompt: string, aspectRatio: string, style: string) => void;
   isGenerating: boolean;
   initialPrompt?: string;
+  guestCreditsRemaining?: number;
+  guestCreditsMax?: number;
 }
 
 export default function PromptBar({ onGenerate, isGenerating, initialPrompt }: PromptBarProps) {
