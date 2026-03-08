@@ -305,6 +305,48 @@ export default function Index() {
     handlePrompt(prompt, aspectRatio || "1:1", style || "", { quantity: 4, skipUserBubble: true, forceImage: true });
   }, [handlePrompt]);
 
+  const handleRetrySlot = useCallback(async (messageId: string, slotIndex: number) => {
+    const msg = messages.find((m) => m.id === messageId);
+    if (!msg) return;
+
+    // Remove from failed list
+    setMessages((prev) =>
+      prev.map((m) => {
+        if (m.id !== messageId) return m;
+        return { ...m, failedSlots: (m.failedSlots || []).filter((i) => i !== slotIndex), isGenerating: true, generatingLabel: "Retrying..." };
+      })
+    );
+
+    try {
+      const chatHistory = buildChatHistory();
+      const data = await generateSingle(msg.prompt, msg.aspectRatio || "1:1", chatHistory, { forceImage: true });
+      if (data?.imageUrl) {
+        setMessages((prev) =>
+          prev.map((m) => {
+            if (m.id !== messageId) return m;
+            const updated = [...(m.imageUrls || []), data.imageUrl!];
+            const failedCount = (m.failedSlots || []).length;
+            const done = updated.length + failedCount >= (m.imageSlots || 1);
+            return { ...m, imageUrls: updated, isGenerating: !done, generatingLabel: done ? undefined : m.generatingLabel };
+          })
+        );
+        if (!user) {
+          consumeCredit();
+          saveGuestImage(data.imageUrl, msg.prompt, msg.aspectRatio || "1:1", msg.style || null);
+        }
+      } else {
+        // Re-mark as failed
+        setMessages((prev) =>
+          prev.map((m) => m.id !== messageId ? m : { ...m, failedSlots: [...(m.failedSlots || []), slotIndex], isGenerating: false })
+        );
+      }
+    } catch {
+      setMessages((prev) =>
+        prev.map((m) => m.id !== messageId ? m : { ...m, failedSlots: [...(m.failedSlots || []), slotIndex], isGenerating: false })
+      );
+    }
+  }, [messages, buildChatHistory, generateSingle, user, consumeCredit, saveGuestImage]);
+
   const handleOpenRefine = useCallback((messageId: string, imageUrl: string, prompt: string) => {
     setRefineMessageId(messageId);
     setRefineImageUrl(imageUrl);
