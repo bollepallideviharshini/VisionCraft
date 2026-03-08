@@ -23,7 +23,7 @@ interface PromptBarProps {
   guestCreditsMax?: number;
 }
 
-export default function PromptBar({ onGenerate, isGenerating, initialPrompt }: PromptBarProps) {
+export default function PromptBar({ onGenerate, isGenerating, initialPrompt, guestCreditsRemaining, guestCreditsMax }: PromptBarProps) {
   const [prompt, setPrompt] = useState(initialPrompt || "");
   const [aspectRatio, setAspectRatio] = useState("1:1");
   const [selectedStyle, setSelectedStyle] = useState("");
