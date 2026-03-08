@@ -298,36 +298,38 @@ export default function ChatThread({ messages, onRegenerate, onVariations, onRef
                   </div>
                 )}
 
-                {/* Generating state — skeleton loader */}
-                {msg.isGenerating && (
-                  <SkeletonLoader
-                    aspectRatio={getAspectForMsg(i)}
-                    generatingLabel={msg.generatingLabel}
-                  />
-                )}
-
-                {/* Multi-image grid */}
-                {!msg.isGenerating && msg.imageUrls && msg.imageUrls.length > 0 && (
+                {/* Multi-image grid (including progressive loading) */}
+                {msg.imageUrls && msg.imageUrls.length > 0 && (
                   <>
                     <div className="rounded-md border border-[hsl(var(--ai-bubble-border))] bg-[hsl(var(--ai-bubble))] overflow-hidden">
-                      {renderImageGrid(msg.imageUrls, msg.prompt, msg.id)}
+                      {renderImageGrid(msg.imageUrls, msg.prompt, msg.id, msg.imageSlots)}
                       <div className="flex items-center justify-between px-3 py-2 border-t border-[hsl(var(--ai-bubble-border))]">
                         <p className="text-[11px] text-muted-foreground font-mono truncate max-w-[50%]">
                           {msg.prompt}
                         </p>
                         <span className="text-[10px] text-muted-foreground font-mono">
-                          {msg.imageUrls.length} images
+                          {msg.imageUrls.length}{msg.imageSlots ? `/${msg.imageSlots}` : ""} images
                         </span>
                       </div>
                     </div>
-                    <div className="flex items-center gap-1.5 pl-1">
-                      {onRegenerate && (
-                        <Button variant="ghost" size="sm" className="h-7 px-2.5 text-[11px] font-mono text-muted-foreground hover:text-foreground gap-1.5" onClick={() => { const u = findUserMsgForAssistant(i); onRegenerate(msg.id, msg.prompt, u?.aspectRatio, u?.style); }}>
-                          <RefreshCw className="h-3 w-3" /> Regenerate
-                        </Button>
-                      )}
-                    </div>
+                    {!msg.isGenerating && (
+                      <div className="flex items-center gap-1.5 pl-1">
+                        {onRegenerate && (
+                          <Button variant="ghost" size="sm" className="h-7 px-2.5 text-[11px] font-mono text-muted-foreground hover:text-foreground gap-1.5" onClick={() => { const u = findUserMsgForAssistant(i); onRegenerate(msg.id, msg.prompt, u?.aspectRatio, u?.style); }}>
+                            <RefreshCw className="h-3 w-3" /> Regenerate
+                          </Button>
+                        )}
+                      </div>
+                    )}
                   </>
+                )}
+
+                {/* Generating state with no images yet — skeleton loader */}
+                {msg.isGenerating && (!msg.imageUrls || msg.imageUrls.length === 0) && (
+                  <SkeletonLoader
+                    aspectRatio={getAspectForMsg(i)}
+                    generatingLabel={msg.generatingLabel}
+                  />
                 )}
 
                 {/* Single image */}
