@@ -322,8 +322,10 @@ serve(async (req) => {
       imageId = insertData?.id;
     }
 
+    const contextShift = isNewTopic ? "Switching gears! Generating a fresh creation for you now..." : undefined;
+
     return new Response(
-      JSON.stringify({ type: "image", imageUrl, imageId }),
+      JSON.stringify({ type: "image", imageUrl, imageId, contextShift }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (e) {
