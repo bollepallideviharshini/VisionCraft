@@ -13,6 +13,8 @@ export interface ChatMessage {
   imageUrls?: string[];
   /** For progressive loading: total slots expected */
   imageSlots?: number;
+  /** Track failed slots for retry */
+  failedSlots?: number[];
   textResponse?: string;
   isGenerating?: boolean;
   generatingLabel?: string;
