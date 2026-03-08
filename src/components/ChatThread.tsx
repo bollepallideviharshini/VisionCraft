@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Download, Copy, Share2, RefreshCw, Grid2x2, Wand2, Brush, Maximize2 } from "lucide-react";
+import { Download, Copy, Share2, RefreshCw, Grid2x2, Wand2, Brush, Maximize2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
