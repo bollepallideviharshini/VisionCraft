@@ -125,7 +125,7 @@ function CrossFadeImage({ src, alt, className }: { src: string; alt: string; cla
   );
 }
 
-export default function ChatThread({ messages, onRegenerate, onVariations, onRefine }: ChatThreadProps) {
+export default function ChatThread({ messages, onRegenerate, onVariations, onRefine, onRetrySlot }: ChatThreadProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const [expandedImage, setExpandedImage] = useState<string | null>(null);
 
