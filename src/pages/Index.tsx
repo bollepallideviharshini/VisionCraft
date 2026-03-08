@@ -54,13 +54,14 @@ export default function Index() {
   }, [user]);
 
   const buildChatHistory = useCallback(() => {
-    return messages.
-    filter((m) => !m.isGenerating).
-    map((m) => ({
-      role: m.role,
-      prompt: m.prompt,
-      imageUrl: m.imageUrl
-    }));
+    return messages
+      .filter((m) => !m.isGenerating)
+      .map((m) => ({
+        role: m.role,
+        prompt: m.prompt,
+        imageUrl: m.imageUrl,
+        textResponse: m.textResponse,
+      }));
   }, [messages]);
 
   const generateImage = useCallback(async (
