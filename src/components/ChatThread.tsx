@@ -364,7 +364,7 @@ export default function ChatThread({ messages, onRegenerate, onVariations, onRef
                 )}
 
                 {/* Single image */}
-                {!msg.isGenerating && msg.imageUrl && !msg.imageUrls && !msg.textResponse && (
+                {!msg.isGenerating && msg.imageUrl && !msg.imageUrls && (
                   renderSingleImage(msg, i)
                 )}
               </div>

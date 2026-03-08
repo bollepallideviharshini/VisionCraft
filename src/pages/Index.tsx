@@ -170,7 +170,7 @@ export default function Index() {
         setMessages((prev) =>
           prev.map((m) =>
             m.id === aiMsgId
-              ? { ...m, imageUrl: data.imageUrl, isGenerating: false, generatingLabel: undefined }
+              ? { ...m, imageUrl: data.imageUrl, textResponse: undefined, isGenerating: false, generatingLabel: undefined }
               : m
           )
         );
