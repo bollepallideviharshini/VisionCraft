@@ -105,6 +105,8 @@ serve(async (req) => {
         const classification = intentData.choices?.[0]?.message?.content?.trim().toLowerCase();
         if (classification === "chat") {
           intent = "chat";
+        } else if (classification === "new_image") {
+          intent = "new_image";
         }
       }
     }
