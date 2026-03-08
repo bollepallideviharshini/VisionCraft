@@ -8,7 +8,7 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import Navbar from "@/components/Navbar";
 import ChatThread, { type ChatMessage } from "@/components/ChatThread";
 import ChatPromptBar from "@/components/ChatPromptBar";
-import InspirationFeed from "@/components/InspirationFeed";
+
 import GuestLimitModal from "@/components/GuestLimitModal";
 import GenerationSidebar from "@/components/GenerationSidebar";
 import RefineModal from "@/components/RefineModal";
