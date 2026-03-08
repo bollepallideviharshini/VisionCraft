@@ -4,12 +4,14 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { useGuestCredits } from "@/hooks/use-guest-credits";
+import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import Navbar from "@/components/Navbar";
 import ChatThread, { type ChatMessage } from "@/components/ChatThread";
 import ChatPromptBar from "@/components/ChatPromptBar";
 import InspirationFeed from "@/components/InspirationFeed";
 import GuestLimitModal from "@/components/GuestLimitModal";
-import { Sparkles } from "lucide-react";
+import GenerationSidebar from "@/components/GenerationSidebar";
+import { Terminal } from "lucide-react";
 
 export default function Index() {
   const { user } = useAuth();
@@ -20,7 +22,6 @@ export default function Index() {
 
   const { remaining, maxCredits, hasCredits, consumeCredit, saveGuestImage, getGuestImages, clearGuestData } = useGuestCredits();
 
-  // Transfer guest images on sign-in
   useEffect(() => {
     if (!user) return;
     const guestImages = getGuestImages();
@@ -38,7 +39,7 @@ export default function Index() {
         });
       }
       clearGuestData();
-      toast({ title: "Guest images transferred!", description: `${guestImages.length} image(s) added to your library.` });
+      toast({ title: "Guest images transferred", description: `${guestImages.length} image(s) added to your library.` });
     };
     transferImages();
   }, [user]);
@@ -52,7 +53,6 @@ export default function Index() {
     const userMsgId = crypto.randomUUID();
     const aiMsgId = crypto.randomUUID();
 
-    // Add user bubble + generating bubble
     setMessages((prev) => [
       ...prev,
       { id: userMsgId, role: "user", prompt, aspectRatio, style: style || undefined, timestamp: new Date() },
@@ -71,7 +71,6 @@ export default function Index() {
       if (error) throw error;
       if (!data?.imageUrl) throw new Error("No image returned");
 
-      // Update the AI bubble with the result
       setMessages((prev) =>
         prev.map((m) =>
           m.id === aiMsgId ? { ...m, imageUrl: data.imageUrl, isGenerating: false } : m
@@ -83,67 +82,71 @@ export default function Index() {
         saveGuestImage(data.imageUrl, prompt, aspectRatio, style || null);
       }
 
-      toast({ title: "Image generated!", description: "Your creation is ready." });
+      toast({ title: "Done", description: "Image generated." });
     } catch (err: any) {
-      // Remove the failed AI bubble
       setMessages((prev) => prev.filter((m) => m.id !== aiMsgId));
-      toast({ title: "Generation failed", description: err.message, variant: "destructive" });
+      toast({ title: "Failed", description: err.message, variant: "destructive" });
     } finally {
       setIsGenerating(false);
     }
   }, [user, hasCredits, consumeCredit, saveGuestImage]);
 
   return (
-    <div className="flex h-screen flex-col bg-background">
-      <Navbar />
-      <GuestLimitModal open={showLimitModal} onOpenChange={setShowLimitModal} />
+    <SidebarProvider>
+      <div className="flex h-screen w-full bg-background">
+        <GenerationSidebar messages={messages} />
 
-      {/* Ambient background */}
-      <div className="pointer-events-none fixed inset-0 overflow-hidden">
-        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 h-[500px] w-[500px] rounded-full bg-primary/5 blur-[120px]" />
-        <div className="absolute bottom-0 left-0 h-[300px] w-[300px] rounded-full bg-accent/5 blur-[100px]" />
-      </div>
+        <div className="flex flex-1 flex-col min-w-0">
+          <Navbar />
+          <GuestLimitModal open={showLimitModal} onOpenChange={setShowLimitModal} />
 
-      {/* Scrollable chat area */}
-      <div className="relative z-10 flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-3xl px-4 py-8">
-          {messages.length === 0 ? (
-            <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-8">
-              <motion.div
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6 }}
-                className="text-center space-y-4"
-              >
-                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl gradient-bg glow mb-4">
-                  <Sparkles className="h-8 w-8 text-primary-foreground" />
+          {/* Header with sidebar trigger */}
+          <div className="flex items-center border-b border-border/30 px-4 h-10">
+            <SidebarTrigger className="text-muted-foreground hover:text-foreground" />
+          </div>
+
+          {/* Chat area */}
+          <div className="flex-1 overflow-y-auto">
+            <div className="mx-auto max-w-[800px] px-4 py-8">
+              {messages.length === 0 ? (
+                <div className="flex flex-col items-center justify-center min-h-[55vh] space-y-8">
+                  <motion.div
+                    initial={{ opacity: 0, y: -16 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.5 }}
+                    className="text-center space-y-3"
+                  >
+                    <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-md border border-border bg-card mb-4">
+                      <Terminal className="h-5 w-5 text-muted-foreground" />
+                    </div>
+                    <h1 className="text-3xl md:text-4xl font-semibold tracking-tight text-foreground">
+                      VisionCraft
+                    </h1>
+                    <p className="text-sm text-muted-foreground max-w-sm mx-auto leading-relaxed">
+                      Describe an image and watch it come to life. Start typing or pick an inspiration below.
+                    </p>
+                  </motion.div>
+
+                  <InspirationFeed onSelect={(p) => setInspirationPrompt(p)} />
                 </div>
-                <h1 className="text-4xl md:text-5xl font-bold tracking-tight">
-                  Generate Your <span className="gradient-text">Vision</span>
-                </h1>
-                <p className="text-base text-muted-foreground max-w-md mx-auto">
-                  Describe an image and watch it come to life. Start typing below or pick an inspiration.
-                </p>
-              </motion.div>
-
-              <InspirationFeed onSelect={(p) => setInspirationPrompt(p)} />
+              ) : (
+                <ChatThread messages={messages} />
+              )}
             </div>
-          ) : (
-            <ChatThread messages={messages} />
-          )}
+          </div>
+
+          {/* Sticky prompt bar */}
+          <div className="relative z-20">
+            <ChatPromptBar
+              onGenerate={handleGenerate}
+              isGenerating={isGenerating}
+              initialPrompt={inspirationPrompt}
+              guestCreditsRemaining={!user ? remaining : undefined}
+              guestCreditsMax={!user ? maxCredits : undefined}
+            />
+          </div>
         </div>
       </div>
-
-      {/* Sticky prompt bar */}
-      <div className="relative z-20">
-        <ChatPromptBar
-          onGenerate={handleGenerate}
-          isGenerating={isGenerating}
-          initialPrompt={inspirationPrompt}
-          guestCreditsRemaining={!user ? remaining : undefined}
-          guestCreditsMax={!user ? maxCredits : undefined}
-        />
-      </div>
-    </div>
+    </SidebarProvider>
   );
 }

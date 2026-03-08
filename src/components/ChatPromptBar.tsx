@@ -2,12 +2,12 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Sparkles, Loader2, ArrowUp } from "lucide-react";
+import { Loader2, ArrowUp, Square, RectangleHorizontal, RectangleVertical } from "lucide-react";
 
 const ASPECT_RATIOS = [
-  { label: "1:1", value: "1:1" },
-  { label: "16:9", value: "16:9" },
-  { label: "9:16", value: "9:16" },
+  { label: "1:1", value: "1:1", icon: Square },
+  { label: "16:9", value: "16:9", icon: RectangleHorizontal },
+  { label: "9:16", value: "9:16", icon: RectangleVertical },
 ];
 
 const STYLES = [
@@ -52,37 +52,36 @@ export default function ChatPromptBar({
   };
 
   return (
-    <div className="border-t border-border/40 bg-background/80 backdrop-blur-xl">
-      <div className="mx-auto max-w-3xl px-4 py-3 space-y-3">
-        {/* Controls row */}
+    <div className="glass border-t border-border/40">
+      <div className="mx-auto max-w-[800px] px-4 py-3 space-y-2.5">
+        {/* Controls */}
         <div className="flex flex-wrap items-center gap-2">
-          {/* Aspect ratio toggles */}
-          <div className="flex items-center gap-1 rounded-lg bg-secondary/40 p-0.5">
+          <div className="flex items-center gap-0.5 rounded-md bg-secondary/60 p-0.5">
             {ASPECT_RATIOS.map((ar) => (
               <button
                 key={ar.value}
                 onClick={() => setAspectRatio(ar.value)}
-                className={`rounded-md px-2.5 py-1 text-[11px] font-medium transition-all ${
+                className={`flex items-center gap-1.5 rounded px-2.5 py-1 text-[11px] font-medium transition-colors ${
                   aspectRatio === ar.value
-                    ? "gradient-bg text-primary-foreground shadow-sm"
+                    ? "bg-foreground text-background"
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
+                <ar.icon className="h-3 w-3" />
                 {ar.label}
               </button>
             ))}
           </div>
 
-          {/* Style chips */}
           <div className="flex flex-wrap gap-1">
             {STYLES.map((style) => (
               <button
                 key={style}
                 onClick={() => setSelectedStyle(selectedStyle === style ? "" : style)}
-                className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-all border ${
+                className={`rounded-md px-2.5 py-0.5 text-[11px] font-medium transition-colors border ${
                   selectedStyle === style
-                    ? "border-primary/50 bg-primary/10 text-primary"
-                    : "border-border/40 text-muted-foreground hover:border-primary/30 hover:text-foreground"
+                    ? "border-foreground/30 bg-foreground/10 text-foreground"
+                    : "border-border/40 text-muted-foreground hover:text-foreground hover:border-border"
                 }`}
               >
                 {style}
@@ -90,32 +89,31 @@ export default function ChatPromptBar({
             ))}
           </div>
 
-          {/* Credits badge */}
           {guestCreditsRemaining !== undefined && guestCreditsMax !== undefined && (
             <Badge
               variant={guestCreditsRemaining > 0 ? "secondary" : "destructive"}
-              className="ml-auto text-[11px] px-2.5 py-0.5"
+              className="ml-auto text-[11px] font-mono px-2.5 py-0.5 rounded-md"
             >
-              {guestCreditsRemaining}/{guestCreditsMax} credits
+              {guestCreditsRemaining}/{guestCreditsMax}
             </Badge>
           )}
         </div>
 
-        {/* Input row */}
+        {/* Input */}
         <div className="relative flex items-end gap-2">
           <Textarea
-            placeholder="Describe the image you want to create..."
+            placeholder="Describe an image..."
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             onKeyDown={handleKeyDown}
-            className="min-h-[48px] max-h-[120px] resize-none rounded-xl border-border/40 bg-card/60 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus-visible:ring-1 focus-visible:ring-primary/40 focus-visible:ring-offset-0 backdrop-blur-sm"
+            className="min-h-[44px] max-h-[120px] resize-none rounded-md border-border/40 bg-secondary/40 px-4 py-3 text-sm font-mono text-foreground placeholder:text-muted-foreground focus-visible:ring-1 focus-visible:ring-foreground/20 focus-visible:ring-offset-0"
             disabled={isGenerating}
             rows={1}
           />
           <Button
             onClick={handleSubmit}
             disabled={!prompt.trim() || isGenerating}
-            className="h-[48px] w-[48px] shrink-0 rounded-xl gradient-bg glow"
+            className="h-[44px] w-[44px] shrink-0 rounded-md bg-foreground text-background hover:bg-foreground/90"
             size="icon"
           >
             {isGenerating ? (
