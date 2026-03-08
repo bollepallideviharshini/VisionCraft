@@ -11,7 +11,7 @@ import ChatPromptBar from "@/components/ChatPromptBar";
 import InspirationFeed from "@/components/InspirationFeed";
 import GuestLimitModal from "@/components/GuestLimitModal";
 import GenerationSidebar from "@/components/GenerationSidebar";
-import { Terminal } from "lucide-react";
+import { Terminal, Menu } from "lucide-react";
 
 export default function Index() {
   const { user } = useAuth();
