@@ -99,7 +99,9 @@ serve(async (req) => {
     const base64 = base64Match[2];
     const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
 
-    const fileName = `${user.id}/${crypto.randomUUID()}.${ext}`;
+    // For guests, upload to a "guest" folder; for users, upload to their folder
+    const folder = user ? user.id : "guest";
+    const fileName = `${folder}/${crypto.randomUUID()}.${ext}`;
     const { error: uploadError } = await supabaseClient.storage
       .from("user_images")
       .upload(fileName, bytes, { contentType: `image/${ext}`, upsert: false });
@@ -115,25 +117,30 @@ serve(async (req) => {
 
     const imageUrl = urlData.publicUrl;
 
-    // Save to database
-    const { data: insertData, error: insertError } = await supabaseClient
-      .from("generated_images")
-      .insert({
-        user_id: user.id,
-        prompt,
-        image_url: imageUrl,
-        aspect_ratio: aspectRatio,
-        is_public: false,
-      })
-      .select("id")
-      .single();
+    let imageId = null;
 
-    if (insertError) {
-      console.error("Insert error:", insertError);
+    // Only save to database for authenticated users
+    if (user) {
+      const { data: insertData, error: insertError } = await supabaseClient
+        .from("generated_images")
+        .insert({
+          user_id: user.id,
+          prompt,
+          image_url: imageUrl,
+          aspect_ratio: aspectRatio,
+          is_public: false,
+        })
+        .select("id")
+        .single();
+
+      if (insertError) {
+        console.error("Insert error:", insertError);
+      }
+      imageId = insertData?.id;
     }
 
     return new Response(
-      JSON.stringify({ imageUrl, imageId: insertData?.id }),
+      JSON.stringify({ imageUrl, imageId }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (e) {
