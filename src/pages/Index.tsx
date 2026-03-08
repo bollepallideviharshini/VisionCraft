@@ -8,17 +8,17 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import Navbar from "@/components/Navbar";
 import ChatThread, { type ChatMessage } from "@/components/ChatThread";
 import ChatPromptBar from "@/components/ChatPromptBar";
-
+import InspirationFeed from "@/components/InspirationFeed";
 import GuestLimitModal from "@/components/GuestLimitModal";
 import GenerationSidebar from "@/components/GenerationSidebar";
 import RefineModal from "@/components/RefineModal";
-import { Terminal, Menu } from "lucide-react";
+import { Terminal, Menu, Brush } from "lucide-react";
 
 export default function Index() {
   const { user } = useAuth();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [_inspirationPrompt, setInspirationPrompt] = useState("");
+  const [inspirationPrompt, setInspirationPrompt] = useState("");
   const [showLimitModal, setShowLimitModal] = useState(false);
 
   // Refine modal state
@@ -44,7 +44,7 @@ export default function Index() {
           image_url: img.imageUrl,
           aspect_ratio: img.aspectRatio,
           style: img.style,
-          is_public: false,
+          is_public: false
         });
       }
       clearGuestData();
@@ -54,21 +54,21 @@ export default function Index() {
   }, [user]);
 
   const buildChatHistory = useCallback(() => {
-    return messages
-      .filter((m) => !m.isGenerating)
-      .map((m) => ({
-        role: m.role,
-        prompt: m.prompt,
-        imageUrl: m.imageUrl,
-      }));
+    return messages.
+    filter((m) => !m.isGenerating).
+    map((m) => ({
+      role: m.role,
+      prompt: m.prompt,
+      imageUrl: m.imageUrl
+    }));
   }, [messages]);
 
   const generateImage = useCallback(async (
-    prompt: string,
-    aspectRatio: string,
-    style: string,
-    options: { variationMode?: boolean; skipUserBubble?: boolean } = {}
-  ) => {
+  prompt: string,
+  aspectRatio: string,
+  style: string,
+  options: {variationMode?: boolean;skipUserBubble?: boolean;} = {}) =>
+  {
     if (!user && !hasCredits) {
       setShowLimitModal(true);
       return;
@@ -79,15 +79,15 @@ export default function Index() {
 
     if (!options.skipUserBubble) {
       setMessages((prev) => [
-        ...prev,
-        { id: userMsgId, role: "user", prompt, aspectRatio, style: style || undefined, timestamp: new Date() },
-        { id: aiMsgId, role: "assistant", prompt, isGenerating: true, timestamp: new Date() },
-      ]);
+      ...prev,
+      { id: userMsgId, role: "user", prompt, aspectRatio, style: style || undefined, timestamp: new Date() },
+      { id: aiMsgId, role: "assistant", prompt, isGenerating: true, timestamp: new Date() }]
+      );
     } else {
       setMessages((prev) => [
-        ...prev,
-        { id: aiMsgId, role: "assistant", prompt, isGenerating: true, timestamp: new Date() },
-      ]);
+      ...prev,
+      { id: aiMsgId, role: "assistant", prompt, isGenerating: true, timestamp: new Date() }]
+      );
     }
 
     setIsGenerating(true);
@@ -102,17 +102,17 @@ export default function Index() {
           aspectRatio,
           isGuest: !user,
           chatHistory,
-          variationMode: options.variationMode || false,
-        },
+          variationMode: options.variationMode || false
+        }
       });
 
       if (error) throw error;
       if (!data?.imageUrl) throw new Error("No image returned");
 
       setMessages((prev) =>
-        prev.map((m) =>
-          m.id === aiMsgId ? { ...m, imageUrl: data.imageUrl, isGenerating: false } : m
-        )
+      prev.map((m) =>
+      m.id === aiMsgId ? { ...m, imageUrl: data.imageUrl, isGenerating: false } : m
+      )
       );
 
       if (!user) {
@@ -166,8 +166,8 @@ export default function Index() {
           prompt: editPrompt,
           aspectRatio: "1:1",
           isGuest: !user,
-          chatHistory,
-        },
+          chatHistory
+        }
       });
 
       if (error) throw error;
@@ -178,10 +178,10 @@ export default function Index() {
       // Also add to chat thread
       const aiMsgId = crypto.randomUUID();
       setMessages((prev) => [
-        ...prev,
-        { id: crypto.randomUUID(), role: "user", prompt: editPrompt, timestamp: new Date() },
-        { id: aiMsgId, role: "assistant", prompt: editPrompt, imageUrl: data.imageUrl, timestamp: new Date() },
-      ]);
+      ...prev,
+      { id: crypto.randomUUID(), role: "user", prompt: editPrompt, timestamp: new Date() },
+      { id: aiMsgId, role: "assistant", prompt: editPrompt, imageUrl: data.imageUrl, timestamp: new Date() }]
+      );
 
       if (!user) {
         consumeCredit();
@@ -213,31 +213,35 @@ export default function Index() {
 
           <div className="flex-1 overflow-y-auto">
             <div className="mx-auto max-w-[800px] px-4 py-8">
-              {messages.length === 0 ? (
-                <motion.div
-                  initial={{ opacity: 0, y: 12 }}
+              {messages.length === 0 ?
+              <div className="flex flex-col items-center justify-center min-h-[55vh] space-y-8">
+                  <motion.div
+                  initial={{ opacity: 0, y: -16 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.6, ease: "easeOut" }}
-                  className="flex flex-col items-center justify-center min-h-[60vh]"
-                >
-                  <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-lg border border-border/40 bg-card/50 mb-5">
-                    <Terminal className="h-4 w-4 text-muted-foreground/70" />
-                  </div>
-                  <h1 className="text-2xl font-semibold tracking-tight text-foreground mb-2">
-                    VisionCraft
-                  </h1>
-                  <p className="text-sm text-muted-foreground/70">
-                    What would you like to create today?
-                  </p>
-                </motion.div>
-              ) : (
-                <ChatThread
-                  messages={messages}
-                  onRegenerate={handleRegenerate}
-                  onVariations={handleVariations}
-                  onRefine={handleOpenRefine}
-                />
-              )}
+                  transition={{ duration: 0.5 }}
+                  className="text-center space-y-3">
+                  
+                    <Brush className="mx-auto flex h-12 w-12 items-center justify-center rounded-md border border-border bg-card mb-4">
+                      <Terminal className="h-5 w-5 text-muted-foreground" />
+                    </Brush>
+                    <h1 className="text-3xl md:text-4xl font-semibold tracking-tight text-foreground">
+                      VisionCraft
+                    </h1>
+                    <p className="text-sm text-muted-foreground max-w-sm mx-auto leading-relaxed">
+                      Describe an image and watch it come to life. Start typing or pick an inspiration below.
+                    </p>
+                  </motion.div>
+
+                  <InspirationFeed onSelect={(p) => setInspirationPrompt(p)} />
+                </div> :
+
+              <ChatThread
+                messages={messages}
+                onRegenerate={handleRegenerate}
+                onVariations={handleVariations}
+                onRefine={handleOpenRefine} />
+
+              }
             </div>
           </div>
 
@@ -245,10 +249,10 @@ export default function Index() {
             <ChatPromptBar
               onGenerate={handleGenerate}
               isGenerating={isGenerating}
-              initialPrompt={undefined}
+              initialPrompt={inspirationPrompt}
               guestCreditsRemaining={!user ? remaining : undefined}
-              guestCreditsMax={!user ? maxCredits : undefined}
-            />
+              guestCreditsMax={!user ? maxCredits : undefined} />
+            
           </div>
         </div>
 
@@ -259,9 +263,9 @@ export default function Index() {
           prompt={refinePrompt}
           onRefine={handleRefineEdit}
           isRefining={isRefining}
-          refinedImageUrl={refinedImageUrl}
-        />
+          refinedImageUrl={refinedImageUrl} />
+        
       </div>
-    </SidebarProvider>
-  );
+    </SidebarProvider>);
+
 }

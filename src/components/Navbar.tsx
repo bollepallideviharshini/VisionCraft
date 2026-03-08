@@ -17,7 +17,7 @@ export default function Navbar() {
       <div className="flex h-12 items-center justify-between px-4">
         <Link to="/" className="flex items-center gap-2">
           <Brush className="h-4 w-4 text-muted-foreground" />
-          <span className="tracking-tight text-3xl font-serif font-bold text-primary bg-black">
+          <span className="tracking-tight text-3xl font-serif font-bold text-primary bg-destructive-foreground">
             VisionCraft  
           </span>
         </Link>
