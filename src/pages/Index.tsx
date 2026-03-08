@@ -12,7 +12,8 @@ import InspirationFeed from "@/components/InspirationFeed";
 import GuestLimitModal from "@/components/GuestLimitModal";
 import GenerationSidebar from "@/components/GenerationSidebar";
 import RefineModal from "@/components/RefineModal";
-import { Menu, Brush } from "lucide-react";
+import { Menu, Brush, Trash2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 export default function Index() {
   const { user } = useAuth();
