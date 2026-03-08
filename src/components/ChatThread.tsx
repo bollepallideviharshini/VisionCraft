@@ -28,6 +28,7 @@ interface ChatThreadProps {
   onRegenerate?: (messageId: string, prompt: string, aspectRatio?: string, style?: string) => void;
   onVariations?: (messageId: string, prompt: string, aspectRatio?: string, style?: string) => void;
   onRefine?: (messageId: string, imageUrl: string, prompt: string) => void;
+  onRetrySlot?: (messageId: string, slotIndex: number) => void;
 }
 
 const ASPECT_RATIO_CLASS: Record<string, string> = {
