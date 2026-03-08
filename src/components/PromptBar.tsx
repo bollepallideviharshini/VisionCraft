@@ -30,6 +30,7 @@ export default function PromptBar({ onGenerate, isGenerating, initialPrompt }: P
     if (initialPrompt) setPrompt(initialPrompt);
   }, [initialPrompt]);
 
+  const handleSubmit = () => {
     if (!prompt.trim()) return;
     onGenerate(prompt.trim(), aspectRatio, selectedStyle);
   };
