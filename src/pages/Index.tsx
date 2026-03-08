@@ -29,7 +29,7 @@ export default function Index() {
   const [isRefining, setIsRefining] = useState(false);
   const [refinedImageUrl, setRefinedImageUrl] = useState<string | undefined>();
 
-  const { remaining, maxCredits, hasCredits, consumeCredit, saveGuestImage, getGuestImages, clearGuestData } = useGuestCredits();
+  const { remaining, maxCredits, hasCredits, consumeCredit, consumeCredits, saveGuestImage, getGuestImages, clearGuestData } = useGuestCredits();
 
   useEffect(() => {
     if (!user) return;
@@ -64,30 +64,66 @@ export default function Index() {
       }));
   }, [messages]);
 
+  // Single image generation (used internally)
+  const generateSingle = useCallback(async (
+    prompt: string,
+    aspectRatio: string,
+    chatHistory: any[],
+    options: { variationMode?: boolean; forceImage?: boolean } = {}
+  ): Promise<{ type: string; imageUrl?: string; textResponse?: string } | null> => {
+    const { data, error } = await supabase.functions.invoke("generate-image", {
+      body: {
+        prompt,
+        aspectRatio,
+        isGuest: !user,
+        chatHistory,
+        variationMode: options.variationMode || false,
+        forceImage: options.forceImage || false,
+      },
+    });
+    if (error) throw error;
+    return data;
+  }, [user]);
+
+  // Main prompt handler supporting quantity
   const handlePrompt = useCallback(async (
     prompt: string,
     aspectRatio: string,
     style: string,
-    options: { variationMode?: boolean; skipUserBubble?: boolean; forceImage?: boolean } = {}
+    options: { quantity?: number; variationMode?: boolean; skipUserBubble?: boolean; forceImage?: boolean } = {}
   ) => {
-    if (!user && !hasCredits) {
-      setShowLimitModal(true);
-      return;
+    const quantity = options.quantity || 1;
+
+    // Credit check for guests
+    if (!user) {
+      if (remaining < quantity) {
+        if (remaining === 0) {
+          setShowLimitModal(true);
+          return;
+        }
+        toast({
+          title: "Not enough credits",
+          description: `You need ${quantity} credits but only have ${remaining}. Reduce the quantity or sign up for more.`,
+          variant: "destructive",
+        });
+        return;
+      }
     }
 
     const userMsgId = crypto.randomUUID();
     const aiMsgId = crypto.randomUUID();
+    const isMulti = quantity > 1;
 
     if (!options.skipUserBubble) {
       setMessages((prev) => [
         ...prev,
         { id: userMsgId, role: "user", prompt, aspectRatio, style: style || undefined, timestamp: new Date() },
-        { id: aiMsgId, role: "assistant", prompt, isGenerating: true, generatingLabel: "Thinking...", timestamp: new Date() },
+        { id: aiMsgId, role: "assistant", prompt, isGenerating: true, generatingLabel: isMulti ? `Painting ${quantity} visions...` : "Thinking...", timestamp: new Date() },
       ]);
     } else {
       setMessages((prev) => [
         ...prev,
-        { id: aiMsgId, role: "assistant", prompt, isGenerating: true, generatingLabel: "Painting your vision...", timestamp: new Date() },
+        { id: aiMsgId, role: "assistant", prompt, isGenerating: true, generatingLabel: isMulti ? `Painting ${quantity} visions...` : "Painting your vision...", timestamp: new Date() },
       ]);
     }
 
@@ -97,77 +133,94 @@ export default function Index() {
       const fullPrompt = style ? `${prompt}, in ${style} style` : prompt;
       const chatHistory = buildChatHistory();
 
-      const { data, error } = await supabase.functions.invoke("generate-image", {
-        body: {
-          prompt: fullPrompt,
-          aspectRatio,
-          isGuest: !user,
-          chatHistory,
-          variationMode: options.variationMode || false,
-          forceImage: options.forceImage || false,
-        },
-      });
+      if (quantity === 1) {
+        // Single image or chat
+        const data = await generateSingle(fullPrompt, aspectRatio, chatHistory, {
+          variationMode: options.variationMode,
+          forceImage: options.forceImage,
+        });
 
-      if (error) throw error;
+        if (!data) throw new Error("No response");
 
-      // Handle chat (text) response
-      if (data?.type === "chat") {
+        if (data.type === "chat") {
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === aiMsgId
+                ? { ...m, textResponse: data.textResponse, isGenerating: false, generatingLabel: undefined }
+                : m
+            )
+          );
+          return;
+        }
+
+        if (!data.imageUrl) throw new Error("No image returned");
+
         setMessages((prev) =>
           prev.map((m) =>
             m.id === aiMsgId
-              ? { ...m, textResponse: data.textResponse, isGenerating: false, generatingLabel: undefined }
+              ? { ...m, imageUrl: data.imageUrl, isGenerating: false, generatingLabel: undefined }
               : m
           )
         );
-        return;
+
+        if (!user) {
+          consumeCredit();
+          saveGuestImage(data.imageUrl!, prompt, aspectRatio, style || null);
+        }
+
+        toast({ title: "Done", description: "Image generated." });
+      } else {
+        // Multi-image: run in parallel
+        const promises = Array.from({ length: quantity }, () =>
+          generateSingle(fullPrompt, aspectRatio, chatHistory, { variationMode: true, forceImage: true })
+        );
+
+        const results = await Promise.allSettled(promises);
+        const imageUrls: string[] = [];
+
+        for (const result of results) {
+          if (result.status === "fulfilled" && result.value?.imageUrl) {
+            imageUrls.push(result.value.imageUrl);
+          }
+        }
+
+        if (imageUrls.length === 0) throw new Error("No images generated");
+
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === aiMsgId
+              ? { ...m, imageUrls, isGenerating: false, generatingLabel: undefined }
+              : m
+          )
+        );
+
+        if (!user) {
+          consumeCredits(imageUrls.length);
+          for (const url of imageUrls) {
+            saveGuestImage(url, prompt, aspectRatio, style || null);
+          }
+        }
+
+        toast({ title: "Done", description: `${imageUrls.length} image${imageUrls.length > 1 ? "s" : ""} generated.` });
       }
-
-      // Handle image response
-      if (!data?.imageUrl) throw new Error("No image returned");
-
-      // Update the generating label before resolving
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === aiMsgId
-            ? { ...m, generatingLabel: "Painting your vision..." }
-            : m
-        )
-      );
-
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === aiMsgId
-            ? { ...m, imageUrl: data.imageUrl, isGenerating: false, generatingLabel: undefined }
-            : m
-        )
-      );
-
-      if (!user) {
-        consumeCredit();
-        saveGuestImage(data.imageUrl, prompt, aspectRatio, style || null);
-      }
-
-      toast({ title: "Done", description: "Image generated." });
     } catch (err: any) {
       setMessages((prev) => prev.filter((m) => m.id !== aiMsgId));
       toast({ title: "Failed", description: err.message, variant: "destructive" });
     } finally {
       setIsGenerating(false);
     }
-  }, [user, hasCredits, consumeCredit, saveGuestImage, buildChatHistory]);
+  }, [user, remaining, consumeCredit, consumeCredits, saveGuestImage, buildChatHistory, generateSingle]);
 
-  const handleGenerate = useCallback((prompt: string, aspectRatio: string, style: string) => {
-    handlePrompt(prompt, aspectRatio, style);
+  const handleGenerate = useCallback((prompt: string, aspectRatio: string, style: string, quantity: number) => {
+    handlePrompt(prompt, aspectRatio, style, { quantity });
   }, [handlePrompt]);
 
   const handleRegenerate = useCallback((_messageId: string, prompt: string, aspectRatio?: string, style?: string) => {
     handlePrompt(prompt, aspectRatio || "1:1", style || "", { skipUserBubble: true, forceImage: true });
   }, [handlePrompt]);
 
-  const handleVariations = useCallback(async (_messageId: string, prompt: string, aspectRatio?: string, style?: string) => {
-    for (let i = 0; i < 4; i++) {
-      await handlePrompt(prompt, aspectRatio || "1:1", style || "", { variationMode: true, skipUserBubble: i > 0, forceImage: true });
-    }
+  const handleVariations = useCallback((_messageId: string, prompt: string, aspectRatio?: string, style?: string) => {
+    handlePrompt(prompt, aspectRatio || "1:1", style || "", { quantity: 4, skipUserBubble: true, forceImage: true });
   }, [handlePrompt]);
 
   const handleOpenRefine = useCallback((messageId: string, imageUrl: string, prompt: string) => {
@@ -193,7 +246,8 @@ export default function Index() {
           prompt: editPrompt,
           aspectRatio: "1:1",
           isGuest: !user,
-          chatHistory
+          chatHistory,
+          forceImage: true,
         }
       });
 
@@ -202,13 +256,12 @@ export default function Index() {
 
       setRefinedImageUrl(data.imageUrl);
 
-      // Also add to chat thread
       const aiMsgId = crypto.randomUUID();
       setMessages((prev) => [
-      ...prev,
-      { id: crypto.randomUUID(), role: "user", prompt: editPrompt, timestamp: new Date() },
-      { id: aiMsgId, role: "assistant", prompt: editPrompt, imageUrl: data.imageUrl, timestamp: new Date() }]
-      );
+        ...prev,
+        { id: crypto.randomUUID(), role: "user", prompt: editPrompt, timestamp: new Date() },
+        { id: aiMsgId, role: "assistant", prompt: editPrompt, imageUrl: data.imageUrl, timestamp: new Date() },
+      ]);
 
       if (!user) {
         consumeCredit();
@@ -240,14 +293,14 @@ export default function Index() {
 
           <div className="flex-1 overflow-y-auto">
             <div className="mx-auto max-w-[800px] px-4 py-8">
-              {messages.length === 0 ?
-              <div className="flex flex-col items-center justify-center min-h-[55vh] space-y-8">
+              {messages.length === 0 ? (
+                <div className="flex flex-col items-center justify-center min-h-[55vh] space-y-8">
                   <motion.div
-                  initial={{ opacity: 0, y: -16 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.5 }}
-                  className="text-center space-y-3">
-                  
+                    initial={{ opacity: 0, y: -16 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.5 }}
+                    className="text-center space-y-3"
+                  >
                     <Brush className="mx-auto flex h-12 w-12 items-center justify-center rounded-md border border-border bg-card mb-4">
                       <Terminal className="h-5 w-5 text-muted-foreground" />
                     </Brush>
@@ -260,15 +313,15 @@ export default function Index() {
                   </motion.div>
 
                   <InspirationFeed onSelect={(p) => setInspirationPrompt(p)} />
-                </div> :
-
-              <ChatThread
-                messages={messages}
-                onRegenerate={handleRegenerate}
-                onVariations={handleVariations}
-                onRefine={handleOpenRefine} />
-
-              }
+                </div>
+              ) : (
+                <ChatThread
+                  messages={messages}
+                  onRegenerate={handleRegenerate}
+                  onVariations={handleVariations}
+                  onRefine={handleOpenRefine}
+                />
+              )}
             </div>
           </div>
 
@@ -278,8 +331,8 @@ export default function Index() {
               isGenerating={isGenerating}
               initialPrompt={inspirationPrompt}
               guestCreditsRemaining={!user ? remaining : undefined}
-              guestCreditsMax={!user ? maxCredits : undefined} />
-            
+              guestCreditsMax={!user ? maxCredits : undefined}
+            />
           </div>
         </div>
 
@@ -290,9 +343,9 @@ export default function Index() {
           prompt={refinePrompt}
           onRefine={handleRefineEdit}
           isRefining={isRefining}
-          refinedImageUrl={refinedImageUrl} />
-        
+          refinedImageUrl={refinedImageUrl}
+        />
       </div>
-    </SidebarProvider>);
-
+    </SidebarProvider>
+  );
 }
