@@ -71,7 +71,7 @@ export default function Index() {
     aspectRatio: string,
     chatHistory: any[],
     options: { variationMode?: boolean; forceImage?: boolean } = {}
-  ): Promise<{ type: string; imageUrl?: string; textResponse?: string } | null> => {
+  ): Promise<{ type: string; imageUrl?: string; textResponse?: string; contextShift?: string } | null> => {
     const { data, error } = await supabase.functions.invoke("generate-image", {
       body: {
         prompt,
