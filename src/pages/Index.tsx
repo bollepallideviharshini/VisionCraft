@@ -92,7 +92,7 @@ export default function Index() {
   }, [user, hasCredits, consumeCredit, saveGuestImage]);
 
   return (
-    <SidebarProvider>
+    <SidebarProvider defaultOpen={false}>
       <div className="flex h-screen w-full bg-background">
         <GenerationSidebar messages={messages} />
 
