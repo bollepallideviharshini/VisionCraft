@@ -331,10 +331,23 @@ export default function Index() {
           <Navbar />
           <GuestLimitModal open={showLimitModal} onOpenChange={setShowLimitModal} />
 
-          <div className="flex items-center border-b border-border/30 px-4 h-10">
+          <div className="flex items-center border-b border-border/30 px-4 h-10 justify-between">
             <SidebarTrigger className="text-muted-foreground hover:text-foreground">
               <Menu className="h-4 w-4" />
             </SidebarTrigger>
+            {messages.length > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2.5 text-[11px] font-mono text-muted-foreground hover:text-foreground gap-1.5"
+                onClick={() => {
+                  setMessages([]);
+                  toast({ title: "Chat cleared", description: "Starting fresh!" });
+                }}
+              >
+                <Trash2 className="h-3 w-3" /> New Chat
+              </Button>
+            )}
           </div>
 
           <div className="flex-1 overflow-y-auto">
