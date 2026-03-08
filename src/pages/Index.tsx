@@ -245,7 +245,7 @@ export default function Index() {
             <ChatPromptBar
               onGenerate={handleGenerate}
               isGenerating={isGenerating}
-              initialPrompt={inspirationPrompt}
+              initialPrompt={undefined}
               guestCreditsRemaining={!user ? remaining : undefined}
               guestCreditsMax={!user ? maxCredits : undefined}
             />
