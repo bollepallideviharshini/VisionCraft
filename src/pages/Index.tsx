@@ -12,7 +12,7 @@ import InspirationFeed from "@/components/InspirationFeed";
 import GuestLimitModal from "@/components/GuestLimitModal";
 import GenerationSidebar from "@/components/GenerationSidebar";
 import RefineModal from "@/components/RefineModal";
-import { Terminal, Menu, Brush } from "lucide-react";
+import { Menu, Brush } from "lucide-react";
 
 export default function Index() {
   const { user } = useAuth();
@@ -301,9 +301,9 @@ export default function Index() {
                     transition={{ duration: 0.5 }}
                     className="text-center space-y-3"
                   >
-                    <Brush className="mx-auto flex h-12 w-12 items-center justify-center rounded-md border border-border bg-card mb-4">
-                      <Terminal className="h-5 w-5 text-muted-foreground" />
-                    </Brush>
+                    <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-md border border-border bg-card mb-4">
+                      <Brush className="h-5 w-5 text-muted-foreground" />
+                    </div>
                     <h1 className="text-3xl md:text-4xl font-semibold tracking-tight text-foreground">
                       VisionCraft
                     </h1>
