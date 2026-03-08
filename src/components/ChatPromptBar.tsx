@@ -11,7 +11,7 @@ const ASPECT_RATIOS = [
   { label: "9:16", value: "9:16", icon: RectangleVertical },
 ];
 
-const QUANTITY_OPTIONS = [1, 2, 4];
+const QUANTITY_OPTIONS = [1, 2, 3, 4];
 
 const STYLES = [
   "Cinematic", "Macro", "Minimalist", "Pop Art",

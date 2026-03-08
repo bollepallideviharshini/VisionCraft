@@ -162,7 +162,7 @@ export default function ChatThread({ messages, onRegenerate, onVariations, onRef
 
   const renderImageGrid = (urls: string[], prompt: string, msgId: string, totalSlots?: number) => {
     const total = totalSlots || urls.length;
-    const cols = total === 1 ? "grid-cols-1" : "grid-cols-2";
+    const cols = total === 1 ? "grid-cols-1" : total === 3 ? "grid-cols-3" : "grid-cols-2";
     const items: (string | null)[] = [...urls];
     // Fill remaining slots with null (skeleton placeholders)
     while (items.length < total) items.push(null);
