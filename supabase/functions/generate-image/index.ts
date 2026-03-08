@@ -13,6 +13,12 @@ const ASPECT_RATIO_MAP: Record<string, { width: number; height: number }> = {
   "9:16": { width: 1080, height: 1920 },
 };
 
+interface ChatHistoryItem {
+  role: "user" | "assistant";
+  prompt: string;
+  imageUrl?: string;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -25,11 +31,10 @@ serve(async (req) => {
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-    // Get user from auth header (optional for guests)
     const authHeader = req.headers.get("Authorization");
     const supabaseClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     const anonClient = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_ANON_KEY")!);
-    
+
     let user = null;
     if (authHeader) {
       const { data: { user: authUser }, error: authError } = await anonClient.auth.getUser(
@@ -40,14 +45,57 @@ serve(async (req) => {
       }
     }
 
-    const { prompt, aspectRatio = "1:1" } = await req.json();
+    const { prompt, aspectRatio = "1:1", chatHistory = [], variationMode = false } = await req.json();
     if (!prompt || typeof prompt !== "string" || prompt.length > 2000) {
       throw new Error("Invalid prompt");
     }
 
     const dims = ASPECT_RATIO_MAP[aspectRatio] || ASPECT_RATIO_MAP["1:1"];
 
-    // Call Gemini via Lovable AI Gateway
+    // Build conversational messages for the AI
+    const aiMessages: any[] = [];
+
+    // System message for context
+    aiMessages.push({
+      role: "user",
+      content: "You are an image generation AI. Generate images based on user descriptions. When the user refers to previous images or asks for modifications, use the conversation context to understand what they want changed.",
+    });
+
+    // Add chat history for conversational memory (last 6 exchanges max)
+    const recentHistory = (chatHistory as ChatHistoryItem[]).slice(-6);
+    for (const item of recentHistory) {
+      if (item.role === "user") {
+        aiMessages.push({
+          role: "user",
+          content: `Previous request: ${item.prompt}`,
+        });
+      } else if (item.role === "assistant" && item.imageUrl) {
+        // Include the previous image as reference
+        aiMessages.push({
+          role: "user",
+          content: [
+            { type: "text", text: "Here is the image that was generated from the previous request:" },
+            { type: "image_url", image_url: { url: item.imageUrl } },
+          ],
+        });
+      }
+    }
+
+    // Current request
+    const variationSuffix = variationMode
+      ? " Create a slight variation of this concept with minor creative differences."
+      : "";
+    
+    const hasHistory = recentHistory.length > 0;
+    const contextPrefix = hasHistory
+      ? "Based on our conversation above, generate a new image: "
+      : "Generate a high-quality image: ";
+
+    aiMessages.push({
+      role: "user",
+      content: `${contextPrefix}${prompt}${variationSuffix}`,
+    });
+
     const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -56,12 +104,7 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         model: "google/gemini-2.5-flash-image",
-        messages: [
-          {
-            role: "user",
-            content: `Generate a high-quality image: ${prompt}`,
-          },
-        ],
+        messages: aiMessages,
         modalities: ["image", "text"],
       }),
     });
@@ -86,12 +129,11 @@ serve(async (req) => {
 
     const aiData = await aiResponse.json();
     const imageData = aiData.choices?.[0]?.message?.images?.[0]?.image_url?.url;
-    
+
     if (!imageData) {
       throw new Error("No image generated from AI");
     }
 
-    // Extract base64 and upload to storage
     const base64Match = imageData.match(/^data:image\/(png|jpeg|jpg|webp);base64,(.+)$/);
     if (!base64Match) throw new Error("Invalid image data format");
 
@@ -99,7 +141,6 @@ serve(async (req) => {
     const base64 = base64Match[2];
     const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
 
-    // For guests, upload to a "guest" folder; for users, upload to their folder
     const folder = user ? user.id : "guest";
     const fileName = `${folder}/${crypto.randomUUID()}.${ext}`;
     const { error: uploadError } = await supabaseClient.storage
@@ -116,10 +157,8 @@ serve(async (req) => {
       .getPublicUrl(fileName);
 
     const imageUrl = urlData.publicUrl;
-
     let imageId = null;
 
-    // Only save to database for authenticated users
     if (user) {
       const { data: insertData, error: insertError } = await supabaseClient
         .from("generated_images")

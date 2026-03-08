@@ -44,7 +44,23 @@ export default function Index() {
     transferImages();
   }, [user]);
 
-  const handleGenerate = useCallback(async (prompt: string, aspectRatio: string, style: string) => {
+  // Build chat history from messages for conversational memory
+  const buildChatHistory = useCallback(() => {
+    return messages
+      .filter((m) => !m.isGenerating)
+      .map((m) => ({
+        role: m.role,
+        prompt: m.prompt,
+        imageUrl: m.imageUrl,
+      }));
+  }, [messages]);
+
+  const generateImage = useCallback(async (
+    prompt: string,
+    aspectRatio: string,
+    style: string,
+    options: { variationMode?: boolean; skipUserBubble?: boolean } = {}
+  ) => {
     if (!user && !hasCredits) {
       setShowLimitModal(true);
       return;
@@ -53,19 +69,33 @@ export default function Index() {
     const userMsgId = crypto.randomUUID();
     const aiMsgId = crypto.randomUUID();
 
-    setMessages((prev) => [
-      ...prev,
-      { id: userMsgId, role: "user", prompt, aspectRatio, style: style || undefined, timestamp: new Date() },
-      { id: aiMsgId, role: "assistant", prompt, isGenerating: true, timestamp: new Date() },
-    ]);
+    if (!options.skipUserBubble) {
+      setMessages((prev) => [
+        ...prev,
+        { id: userMsgId, role: "user", prompt, aspectRatio, style: style || undefined, timestamp: new Date() },
+        { id: aiMsgId, role: "assistant", prompt, isGenerating: true, timestamp: new Date() },
+      ]);
+    } else {
+      setMessages((prev) => [
+        ...prev,
+        { id: aiMsgId, role: "assistant", prompt, isGenerating: true, timestamp: new Date() },
+      ]);
+    }
 
     setIsGenerating(true);
 
     try {
       const fullPrompt = style ? `${prompt}, in ${style} style` : prompt;
+      const chatHistory = buildChatHistory();
 
       const { data, error } = await supabase.functions.invoke("generate-image", {
-        body: { prompt: fullPrompt, aspectRatio, isGuest: !user },
+        body: {
+          prompt: fullPrompt,
+          aspectRatio,
+          isGuest: !user,
+          chatHistory,
+          variationMode: options.variationMode || false,
+        },
       });
 
       if (error) throw error;
@@ -89,7 +119,27 @@ export default function Index() {
     } finally {
       setIsGenerating(false);
     }
-  }, [user, hasCredits, consumeCredit, saveGuestImage]);
+  }, [user, hasCredits, consumeCredit, saveGuestImage, buildChatHistory]);
+
+  const handleGenerate = useCallback((prompt: string, aspectRatio: string, style: string) => {
+    generateImage(prompt, aspectRatio, style);
+  }, [generateImage]);
+
+  const handleRegenerate = useCallback((_messageId: string, prompt: string, aspectRatio?: string, style?: string) => {
+    generateImage(prompt, aspectRatio || "1:1", style || "", { skipUserBubble: true });
+  }, [generateImage]);
+
+  const handleVariations = useCallback(async (_messageId: string, prompt: string, aspectRatio?: string, style?: string) => {
+    // Generate 4 variations sequentially (to avoid rate limits)
+    for (let i = 0; i < 4; i++) {
+      await generateImage(
+        prompt,
+        aspectRatio || "1:1",
+        style || "",
+        { variationMode: true, skipUserBubble: i > 0 }
+      );
+    }
+  }, [generateImage]);
 
   return (
     <SidebarProvider defaultOpen={false}>
@@ -100,14 +150,12 @@ export default function Index() {
           <Navbar />
           <GuestLimitModal open={showLimitModal} onOpenChange={setShowLimitModal} />
 
-           {/* Header with sidebar trigger */}
            <div className="flex items-center border-b border-border/30 px-4 h-10">
              <SidebarTrigger className="text-muted-foreground hover:text-foreground">
                <Menu className="h-4 w-4" />
              </SidebarTrigger>
            </div>
 
-          {/* Chat area */}
           <div className="flex-1 overflow-y-auto">
             <div className="mx-auto max-w-[800px] px-4 py-8">
               {messages.length === 0 ? (
@@ -132,12 +180,15 @@ export default function Index() {
                   <InspirationFeed onSelect={(p) => setInspirationPrompt(p)} />
                 </div>
               ) : (
-                <ChatThread messages={messages} />
+                <ChatThread
+                  messages={messages}
+                  onRegenerate={handleRegenerate}
+                  onVariations={handleVariations}
+                />
               )}
             </div>
           </div>
 
-          {/* Sticky prompt bar */}
           <div className="relative z-20">
             <ChatPromptBar
               onGenerate={handleGenerate}
