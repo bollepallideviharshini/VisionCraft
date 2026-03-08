@@ -353,7 +353,7 @@ export default function ChatThread({ messages, onRegenerate, onVariations, onRef
                       </div>
                     )}
                   </>
-                )}
+                ) : null}
 
                 {/* Generating state with no images yet — skeleton loader */}
                 {msg.isGenerating && (!msg.imageUrls || msg.imageUrls.length === 0) && (
