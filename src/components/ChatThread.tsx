@@ -160,32 +160,48 @@ export default function ChatThread({ messages, onRegenerate, onVariations, onRef
     return undefined;
   };
 
-  const renderImageGrid = (urls: string[], prompt: string, msgId: string) => {
-    const cols = urls.length === 1 ? "grid-cols-1" : "grid-cols-2";
+  const renderImageGrid = (urls: string[], prompt: string, msgId: string, totalSlots?: number) => {
+    const total = totalSlots || urls.length;
+    const cols = total === 1 ? "grid-cols-1" : "grid-cols-2";
+    const items: (string | null)[] = [...urls];
+    // Fill remaining slots with null (skeleton placeholders)
+    while (items.length < total) items.push(null);
+
     return (
       <div className={`grid ${cols} gap-1`}>
-        {urls.map((url, idx) => (
+        {items.map((url, idx) => (
           <div key={idx} className="group relative overflow-hidden rounded-sm">
-            <CrossFadeImage
-              src={url}
-              alt={`${prompt} - ${idx + 1}`}
-              className="w-full object-cover aspect-square"
-            />
-            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-end justify-center opacity-0 group-hover:opacity-100">
-              <div className="flex items-center gap-0.5 pb-2">
-                <Button variant="ghost" size="icon" className="h-7 w-7 text-white/80 hover:text-white hover:bg-white/20" onClick={() => handleDownload(url)} title="Download">
-                  <Download className="h-3.5 w-3.5" />
-                </Button>
-                <Button variant="ghost" size="icon" className="h-7 w-7 text-white/80 hover:text-white hover:bg-white/20" onClick={() => setExpandedImage(url)} title="Expand">
-                  <Maximize2 className="h-3.5 w-3.5" />
-                </Button>
-                {onRefine && (
-                  <Button variant="ghost" size="icon" className="h-7 w-7 text-white/80 hover:text-white hover:bg-white/20" onClick={() => onRefine(msgId, url, prompt)} title="Refine">
-                    <Wand2 className="h-3.5 w-3.5" />
-                  </Button>
-                )}
+            {url ? (
+              <>
+                <CrossFadeImage
+                  src={url}
+                  alt={`${prompt} - ${idx + 1}`}
+                  className="w-full object-cover aspect-square"
+                />
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-end justify-center opacity-0 group-hover:opacity-100">
+                  <div className="flex items-center gap-0.5 pb-2">
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-white/80 hover:text-white hover:bg-white/20" onClick={() => handleDownload(url)} title="Download">
+                      <Download className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-white/80 hover:text-white hover:bg-white/20" onClick={() => setExpandedImage(url)} title="Expand">
+                      <Maximize2 className="h-3.5 w-3.5" />
+                    </Button>
+                    {onRefine && (
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-white/80 hover:text-white hover:bg-white/20" onClick={() => onRefine(msgId, url, prompt)} title="Refine">
+                        <Wand2 className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="skeleton-shimmer aspect-square flex items-center justify-center">
+                <div className="flex items-center gap-2">
+                  <span className="h-1.5 w-1.5 rounded-full bg-foreground/50 pulse-dot" />
+                  <span className="text-[10px] text-muted-foreground font-mono">Generating...</span>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         ))}
       </div>
