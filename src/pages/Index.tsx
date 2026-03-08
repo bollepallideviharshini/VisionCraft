@@ -153,6 +153,17 @@ export default function Index() {
           return;
         }
 
+        // If the AI acknowledged a topic switch, show it briefly before the image
+        if (data.contextShift) {
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === aiMsgId
+                ? { ...m, textResponse: data.contextShift, isGenerating: true, generatingLabel: "Painting your vision..." }
+                : m
+            )
+          );
+        }
+
         if (!data.imageUrl) throw new Error("No image returned");
 
         setMessages((prev) =>
