@@ -100,10 +100,12 @@ export default function Index() {
           <Navbar />
           <GuestLimitModal open={showLimitModal} onOpenChange={setShowLimitModal} />
 
-          {/* Header with sidebar trigger */}
-          <div className="flex items-center border-b border-border/30 px-4 h-10">
-            <SidebarTrigger className="text-muted-foreground hover:text-foreground" />
-          </div>
+           {/* Header with sidebar trigger */}
+           <div className="flex items-center border-b border-border/30 px-4 h-10">
+             <SidebarTrigger className="text-muted-foreground hover:text-foreground">
+               <Menu className="h-4 w-4" />
+             </SidebarTrigger>
+           </div>
 
           {/* Chat area */}
           <div className="flex-1 overflow-y-auto">
