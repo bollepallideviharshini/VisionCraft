@@ -12,7 +12,7 @@ import InspirationFeed from "@/components/InspirationFeed";
 import GuestLimitModal from "@/components/GuestLimitModal";
 import GenerationSidebar from "@/components/GenerationSidebar";
 import RefineModal from "@/components/RefineModal";
-import { Terminal, Menu, Brush } from "lucide-react";
+import { Menu, Brush } from "lucide-react";
 
 export default function Index() {
   const { user } = useAuth();
