@@ -26,7 +26,10 @@ export default function PromptBar({ onGenerate, isGenerating, initialPrompt }: P
   const [aspectRatio, setAspectRatio] = useState("1:1");
   const [selectedStyle, setSelectedStyle] = useState("");
 
-  const handleSubmit = () => {
+  useEffect(() => {
+    if (initialPrompt) setPrompt(initialPrompt);
+  }, [initialPrompt]);
+
     if (!prompt.trim()) return;
     onGenerate(prompt.trim(), aspectRatio, selectedStyle);
   };
