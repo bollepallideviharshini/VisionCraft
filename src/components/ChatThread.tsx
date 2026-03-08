@@ -11,6 +11,8 @@ export interface ChatMessage {
   prompt: string;
   imageUrl?: string;
   imageUrls?: string[];
+  /** For progressive loading: total slots expected */
+  imageSlots?: number;
   textResponse?: string;
   isGenerating?: boolean;
   generatingLabel?: string;
@@ -158,32 +160,48 @@ export default function ChatThread({ messages, onRegenerate, onVariations, onRef
     return undefined;
   };
 
-  const renderImageGrid = (urls: string[], prompt: string, msgId: string) => {
-    const cols = urls.length === 1 ? "grid-cols-1" : "grid-cols-2";
+  const renderImageGrid = (urls: string[], prompt: string, msgId: string, totalSlots?: number) => {
+    const total = totalSlots || urls.length;
+    const cols = total === 1 ? "grid-cols-1" : "grid-cols-2";
+    const items: (string | null)[] = [...urls];
+    // Fill remaining slots with null (skeleton placeholders)
+    while (items.length < total) items.push(null);
+
     return (
       <div className={`grid ${cols} gap-1`}>
-        {urls.map((url, idx) => (
+        {items.map((url, idx) => (
           <div key={idx} className="group relative overflow-hidden rounded-sm">
-            <CrossFadeImage
-              src={url}
-              alt={`${prompt} - ${idx + 1}`}
-              className="w-full object-cover aspect-square"
-            />
-            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-end justify-center opacity-0 group-hover:opacity-100">
-              <div className="flex items-center gap-0.5 pb-2">
-                <Button variant="ghost" size="icon" className="h-7 w-7 text-white/80 hover:text-white hover:bg-white/20" onClick={() => handleDownload(url)} title="Download">
-                  <Download className="h-3.5 w-3.5" />
-                </Button>
-                <Button variant="ghost" size="icon" className="h-7 w-7 text-white/80 hover:text-white hover:bg-white/20" onClick={() => setExpandedImage(url)} title="Expand">
-                  <Maximize2 className="h-3.5 w-3.5" />
-                </Button>
-                {onRefine && (
-                  <Button variant="ghost" size="icon" className="h-7 w-7 text-white/80 hover:text-white hover:bg-white/20" onClick={() => onRefine(msgId, url, prompt)} title="Refine">
-                    <Wand2 className="h-3.5 w-3.5" />
-                  </Button>
-                )}
+            {url ? (
+              <>
+                <CrossFadeImage
+                  src={url}
+                  alt={`${prompt} - ${idx + 1}`}
+                  className="w-full object-cover aspect-square"
+                />
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-end justify-center opacity-0 group-hover:opacity-100">
+                  <div className="flex items-center gap-0.5 pb-2">
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-white/80 hover:text-white hover:bg-white/20" onClick={() => handleDownload(url)} title="Download">
+                      <Download className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-white/80 hover:text-white hover:bg-white/20" onClick={() => setExpandedImage(url)} title="Expand">
+                      <Maximize2 className="h-3.5 w-3.5" />
+                    </Button>
+                    {onRefine && (
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-white/80 hover:text-white hover:bg-white/20" onClick={() => onRefine(msgId, url, prompt)} title="Refine">
+                        <Wand2 className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="skeleton-shimmer aspect-square flex items-center justify-center">
+                <div className="flex items-center gap-2">
+                  <span className="h-1.5 w-1.5 rounded-full bg-foreground/50 pulse-dot" />
+                  <span className="text-[10px] text-muted-foreground font-mono">Generating...</span>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         ))}
       </div>
@@ -280,36 +298,38 @@ export default function ChatThread({ messages, onRegenerate, onVariations, onRef
                   </div>
                 )}
 
-                {/* Generating state — skeleton loader */}
-                {msg.isGenerating && (
-                  <SkeletonLoader
-                    aspectRatio={getAspectForMsg(i)}
-                    generatingLabel={msg.generatingLabel}
-                  />
-                )}
-
-                {/* Multi-image grid */}
-                {!msg.isGenerating && msg.imageUrls && msg.imageUrls.length > 0 && (
+                {/* Multi-image grid (including progressive loading) */}
+                {msg.imageUrls && msg.imageUrls.length > 0 && (
                   <>
                     <div className="rounded-md border border-[hsl(var(--ai-bubble-border))] bg-[hsl(var(--ai-bubble))] overflow-hidden">
-                      {renderImageGrid(msg.imageUrls, msg.prompt, msg.id)}
+                      {renderImageGrid(msg.imageUrls, msg.prompt, msg.id, msg.imageSlots)}
                       <div className="flex items-center justify-between px-3 py-2 border-t border-[hsl(var(--ai-bubble-border))]">
                         <p className="text-[11px] text-muted-foreground font-mono truncate max-w-[50%]">
                           {msg.prompt}
                         </p>
                         <span className="text-[10px] text-muted-foreground font-mono">
-                          {msg.imageUrls.length} images
+                          {msg.imageUrls.length}{msg.imageSlots ? `/${msg.imageSlots}` : ""} images
                         </span>
                       </div>
                     </div>
-                    <div className="flex items-center gap-1.5 pl-1">
-                      {onRegenerate && (
-                        <Button variant="ghost" size="sm" className="h-7 px-2.5 text-[11px] font-mono text-muted-foreground hover:text-foreground gap-1.5" onClick={() => { const u = findUserMsgForAssistant(i); onRegenerate(msg.id, msg.prompt, u?.aspectRatio, u?.style); }}>
-                          <RefreshCw className="h-3 w-3" /> Regenerate
-                        </Button>
-                      )}
-                    </div>
+                    {!msg.isGenerating && (
+                      <div className="flex items-center gap-1.5 pl-1">
+                        {onRegenerate && (
+                          <Button variant="ghost" size="sm" className="h-7 px-2.5 text-[11px] font-mono text-muted-foreground hover:text-foreground gap-1.5" onClick={() => { const u = findUserMsgForAssistant(i); onRegenerate(msg.id, msg.prompt, u?.aspectRatio, u?.style); }}>
+                            <RefreshCw className="h-3 w-3" /> Regenerate
+                          </Button>
+                        )}
+                      </div>
+                    )}
                   </>
+                )}
+
+                {/* Generating state with no images yet — skeleton loader */}
+                {msg.isGenerating && (!msg.imageUrls || msg.imageUrls.length === 0) && (
+                  <SkeletonLoader
+                    aspectRatio={getAspectForMsg(i)}
+                    generatingLabel={msg.generatingLabel}
+                  />
                 )}
 
                 {/* Single image */}

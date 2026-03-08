@@ -170,38 +170,73 @@ export default function Index() {
 
         toast({ title: "Done", description: "Image generated." });
       } else {
-        // Multi-image: run in parallel
-        const promises = Array.from({ length: quantity }, () =>
-          generateSingle(fullPrompt, aspectRatio, chatHistory, { variationMode: true, forceImage: true })
-        );
-
-        const results = await Promise.allSettled(promises);
-        const imageUrls: string[] = [];
-
-        for (const result of results) {
-          if (result.status === "fulfilled" && result.value?.imageUrl) {
-            imageUrls.push(result.value.imageUrl);
-          }
-        }
-
-        if (imageUrls.length === 0) throw new Error("No images generated");
-
+        // Multi-image: progressive loading — images appear one by one
+        // Set up the message with imageSlots and empty imageUrls
         setMessages((prev) =>
           prev.map((m) =>
             m.id === aiMsgId
-              ? { ...m, imageUrls, isGenerating: false, generatingLabel: undefined }
+              ? { ...m, imageUrls: [], imageSlots: quantity, isGenerating: true, generatingLabel: `Painting ${quantity} visions...` }
               : m
           )
         );
 
-        if (!user) {
-          consumeCredits(imageUrls.length);
-          for (const url of imageUrls) {
-            saveGuestImage(url, prompt, aspectRatio, style || null);
-          }
-        }
+        // Seed variations for prompt diversity
+        const seedVariations = [
+          "",
+          ", from a slightly different angle",
+          ", with subtle lighting variation",
+          ", with a fresh creative interpretation",
+        ];
 
-        toast({ title: "Done", description: `${imageUrls.length} image${imageUrls.length > 1 ? "s" : ""} generated.` });
+        const appendImage = (url: string) => {
+          setMessages((prev) =>
+            prev.map((m) => {
+              if (m.id !== aiMsgId) return m;
+              const updated = [...(m.imageUrls || []), url];
+              const done = updated.length >= quantity;
+              return {
+                ...m,
+                imageUrls: updated,
+                isGenerating: !done,
+                generatingLabel: done ? undefined : m.generatingLabel,
+              };
+            })
+          );
+        };
+
+        // Fire all requests in parallel, but update UI as each resolves
+        const promises = Array.from({ length: quantity }, (_, idx) => {
+          const variation = seedVariations[idx % seedVariations.length];
+          return generateSingle(`${fullPrompt}${variation}`, aspectRatio, chatHistory, { variationMode: true, forceImage: true })
+            .then((data) => {
+              if (data?.imageUrl) {
+                appendImage(data.imageUrl);
+                if (!user) {
+                  consumeCredit();
+                  saveGuestImage(data.imageUrl, prompt, aspectRatio, style || null);
+                }
+              }
+              return data;
+            })
+            .catch(() => null);
+        });
+
+        await Promise.all(promises);
+
+        // Check if any images were generated
+        setMessages((prev) => {
+          const msg = prev.find((m) => m.id === aiMsgId);
+          if (msg && (!msg.imageUrls || msg.imageUrls.length === 0)) {
+            return prev.filter((m) => m.id !== aiMsgId);
+          }
+          // Ensure isGenerating is false
+          return prev.map((m) =>
+            m.id === aiMsgId ? { ...m, isGenerating: false, generatingLabel: undefined, imageSlots: undefined } : m
+          );
+        });
+
+        const finalMsg = messages.find((m) => m.id === aiMsgId);
+        toast({ title: "Done", description: "Images generated." });
       }
     } catch (err: any) {
       setMessages((prev) => prev.filter((m) => m.id !== aiMsgId));
