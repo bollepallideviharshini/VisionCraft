@@ -194,10 +194,10 @@ export default function Index() {
 
         // Seed variations for prompt diversity
         const seedVariations = [
-          "",
-          ", from a slightly different angle",
-          ", with subtle lighting variation",
-          ", with a fresh creative interpretation",
+          ", unique variation seed-alpha, slightly different composition",
+          ", unique variation seed-beta, from a subtly different angle",
+          ", unique variation seed-gamma, with alternative lighting mood",
+          ", unique variation seed-delta, with a fresh creative twist",
         ];
 
         const appendImage = (url: string) => {
