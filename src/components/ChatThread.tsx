@@ -195,7 +195,7 @@ export default function ChatThread({ messages, onRegenerate, onVariations, onRef
                     <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-accent/60 mt-0.5">
                       <Paintbrush className="h-3.5 w-3.5 text-accent-foreground" />
                     </div>
-                    <div className="rounded-md border border-[hsl(var(--ai-bubble-border))] bg-[hsl(var(--ai-bubble))] px-4 py-3">
+                    <div className="rounded-md border border-border/30 bg-white px-4 py-3">
                       <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">
                         {msg.textResponse}
                       </p>
