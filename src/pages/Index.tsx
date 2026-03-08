@@ -18,7 +18,7 @@ export default function Index() {
   const { user } = useAuth();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [inspirationPrompt, setInspirationPrompt] = useState("");
+  const [_inspirationPrompt, setInspirationPrompt] = useState("");
   const [showLimitModal, setShowLimitModal] = useState(false);
 
   // Refine modal state
