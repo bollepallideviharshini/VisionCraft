@@ -17,19 +17,19 @@ interface InspirationFeedProps {
 
 export default function InspirationFeed({ onSelect }: InspirationFeedProps) {
   return (
-    <div className="w-full max-w-3xl mx-auto">
-      <h3 className="mb-3 text-sm font-medium text-muted-foreground uppercase tracking-wider">
-        ✨ Inspiration
+    <div className="w-full max-w-[800px] mx-auto">
+      <h3 className="mb-3 text-[11px] font-medium text-muted-foreground uppercase tracking-widest">
+        Inspiration
       </h3>
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-1.5">
         {INSPIRATIONS.map((item, i) => (
           <motion.button
             key={item.label}
-            initial={{ opacity: 0, scale: 0.9 }}
+            initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.3, delay: i * 0.05 }}
+            transition={{ duration: 0.25, delay: i * 0.04 }}
             onClick={() => onSelect(item.prompt)}
-            className="group rounded-xl border border-border/50 bg-card/40 px-4 py-2 text-sm text-muted-foreground transition-all hover:border-primary/40 hover:bg-primary/5 hover:text-foreground backdrop-blur-sm"
+            className="rounded-md border border-border/50 bg-card/40 px-3 py-1.5 text-xs font-mono text-muted-foreground transition-colors hover:border-border hover:text-foreground"
           >
             {item.label}
           </motion.button>
