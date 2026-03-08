@@ -11,6 +11,8 @@ export interface ChatMessage {
   prompt: string;
   imageUrl?: string;
   imageUrls?: string[];
+  /** For progressive loading: total slots expected */
+  imageSlots?: number;
   textResponse?: string;
   isGenerating?: boolean;
   generatingLabel?: string;
