@@ -11,6 +11,7 @@ import ChatPromptBar from "@/components/ChatPromptBar";
 import InspirationFeed from "@/components/InspirationFeed";
 import GuestLimitModal from "@/components/GuestLimitModal";
 import GenerationSidebar from "@/components/GenerationSidebar";
+import RefineModal from "@/components/RefineModal";
 import { Terminal, Menu } from "lucide-react";
 
 export default function Index() {
@@ -19,6 +20,14 @@ export default function Index() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [inspirationPrompt, setInspirationPrompt] = useState("");
   const [showLimitModal, setShowLimitModal] = useState(false);
+
+  // Refine modal state
+  const [refineOpen, setRefineOpen] = useState(false);
+  const [refineImageUrl, setRefineImageUrl] = useState("");
+  const [refinePrompt, setRefinePrompt] = useState("");
+  const [refineMessageId, setRefineMessageId] = useState("");
+  const [isRefining, setIsRefining] = useState(false);
+  const [refinedImageUrl, setRefinedImageUrl] = useState<string | undefined>();
 
   const { remaining, maxCredits, hasCredits, consumeCredit, saveGuestImage, getGuestImages, clearGuestData } = useGuestCredits();
 
@@ -44,7 +53,6 @@ export default function Index() {
     transferImages();
   }, [user]);
 
-  // Build chat history from messages for conversational memory
   const buildChatHistory = useCallback(() => {
     return messages
       .filter((m) => !m.isGenerating)
@@ -130,16 +138,63 @@ export default function Index() {
   }, [generateImage]);
 
   const handleVariations = useCallback(async (_messageId: string, prompt: string, aspectRatio?: string, style?: string) => {
-    // Generate 4 variations sequentially (to avoid rate limits)
     for (let i = 0; i < 4; i++) {
-      await generateImage(
-        prompt,
-        aspectRatio || "1:1",
-        style || "",
-        { variationMode: true, skipUserBubble: i > 0 }
-      );
+      await generateImage(prompt, aspectRatio || "1:1", style || "", { variationMode: true, skipUserBubble: i > 0 });
     }
   }, [generateImage]);
+
+  const handleOpenRefine = useCallback((messageId: string, imageUrl: string, prompt: string) => {
+    setRefineMessageId(messageId);
+    setRefineImageUrl(imageUrl);
+    setRefinePrompt(prompt);
+    setRefinedImageUrl(undefined);
+    setRefineOpen(true);
+  }, []);
+
+  const handleRefineEdit = useCallback(async (editPrompt: string) => {
+    if (!user && !hasCredits) {
+      setShowLimitModal(true);
+      return;
+    }
+
+    setIsRefining(true);
+
+    try {
+      const chatHistory = buildChatHistory();
+      const { data, error } = await supabase.functions.invoke("generate-image", {
+        body: {
+          prompt: editPrompt,
+          aspectRatio: "1:1",
+          isGuest: !user,
+          chatHistory,
+        },
+      });
+
+      if (error) throw error;
+      if (!data?.imageUrl) throw new Error("No image returned");
+
+      setRefinedImageUrl(data.imageUrl);
+
+      // Also add to chat thread
+      const aiMsgId = crypto.randomUUID();
+      setMessages((prev) => [
+        ...prev,
+        { id: crypto.randomUUID(), role: "user", prompt: editPrompt, timestamp: new Date() },
+        { id: aiMsgId, role: "assistant", prompt: editPrompt, imageUrl: data.imageUrl, timestamp: new Date() },
+      ]);
+
+      if (!user) {
+        consumeCredit();
+        saveGuestImage(data.imageUrl, editPrompt, "1:1", null);
+      }
+
+      toast({ title: "Refined", description: "Edit applied." });
+    } catch (err: any) {
+      toast({ title: "Failed", description: err.message, variant: "destructive" });
+    } finally {
+      setIsRefining(false);
+    }
+  }, [user, hasCredits, buildChatHistory, consumeCredit, saveGuestImage]);
 
   return (
     <SidebarProvider defaultOpen={false}>
@@ -150,11 +205,11 @@ export default function Index() {
           <Navbar />
           <GuestLimitModal open={showLimitModal} onOpenChange={setShowLimitModal} />
 
-           <div className="flex items-center border-b border-border/30 px-4 h-10">
-             <SidebarTrigger className="text-muted-foreground hover:text-foreground">
-               <Menu className="h-4 w-4" />
-             </SidebarTrigger>
-           </div>
+          <div className="flex items-center border-b border-border/30 px-4 h-10">
+            <SidebarTrigger className="text-muted-foreground hover:text-foreground">
+              <Menu className="h-4 w-4" />
+            </SidebarTrigger>
+          </div>
 
           <div className="flex-1 overflow-y-auto">
             <div className="mx-auto max-w-[800px] px-4 py-8">
@@ -184,6 +239,7 @@ export default function Index() {
                   messages={messages}
                   onRegenerate={handleRegenerate}
                   onVariations={handleVariations}
+                  onRefine={handleOpenRefine}
                 />
               )}
             </div>
@@ -199,6 +255,16 @@ export default function Index() {
             />
           </div>
         </div>
+
+        <RefineModal
+          open={refineOpen}
+          onClose={() => setRefineOpen(false)}
+          imageUrl={refineImageUrl}
+          prompt={refinePrompt}
+          onRefine={handleRefineEdit}
+          isRefining={isRefining}
+          refinedImageUrl={refinedImageUrl}
+        />
       </div>
     </SidebarProvider>
   );

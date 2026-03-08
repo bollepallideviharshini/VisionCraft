@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { Download, Copy, Share2, RefreshCw, Grid2x2, MousePointer2 } from "lucide-react";
+import { Download, Copy, Share2, RefreshCw, Grid2x2, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "@/hooks/use-toast";
@@ -20,11 +20,11 @@ interface ChatThreadProps {
   messages: ChatMessage[];
   onRegenerate?: (messageId: string, prompt: string, aspectRatio?: string, style?: string) => void;
   onVariations?: (messageId: string, prompt: string, aspectRatio?: string, style?: string) => void;
+  onRefine?: (messageId: string, imageUrl: string, prompt: string) => void;
 }
 
-export default function ChatThread({ messages, onRegenerate, onVariations }: ChatThreadProps) {
+export default function ChatThread({ messages, onRegenerate, onVariations, onRefine }: ChatThreadProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
-  const [inpaintingId, setInpaintingId] = useState<string | null>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -46,12 +46,6 @@ export default function ChatThread({ messages, onRegenerate, onVariations }: Cha
     }
   };
 
-  const handleInpainting = (msgId: string) => {
-    setInpaintingId(inpaintingId === msgId ? null : msgId);
-    toast({ title: "Coming Soon", description: "Selection & inpainting will be available in a future update." });
-  };
-
-  // Find the user message that corresponds to an assistant message
   const findUserMsgForAssistant = (assistantIndex: number): ChatMessage | undefined => {
     for (let i = assistantIndex - 1; i >= 0; i--) {
       if (messages[i].role === "user") return messages[i];
@@ -94,37 +88,17 @@ export default function ChatThread({ messages, onRegenerate, onVariations }: Cha
                   </div>
                 ) : msg.imageUrl ? (
                   <>
-                    <div className="relative group">
-                      <img
-                        src={msg.imageUrl}
-                        alt={msg.prompt}
-                        className="w-full object-contain"
-                        loading="lazy"
-                      />
-                      {/* Inpainting overlay placeholder */}
-                      {inpaintingId === msg.id && (
-                        <div className="absolute inset-0 bg-foreground/5 flex items-center justify-center">
-                          <div className="rounded-md bg-card border border-border px-4 py-3 text-center">
-                            <MousePointer2 className="h-5 w-5 text-muted-foreground mx-auto mb-1.5" />
-                            <p className="text-xs font-mono text-muted-foreground">Selection tool coming soon</p>
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                    <img
+                      src={msg.imageUrl}
+                      alt={msg.prompt}
+                      className="w-full object-contain"
+                      loading="lazy"
+                    />
                     <div className="flex items-center justify-between px-3 py-2 border-t border-[hsl(var(--ai-bubble-border))]">
                       <p className="text-[11px] text-muted-foreground font-mono truncate max-w-[40%]">
                         {msg.prompt}
                       </p>
                       <div className="flex items-center gap-0.5">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                          title="Select area"
-                          onClick={() => handleInpainting(msg.id)}
-                        >
-                          <MousePointer2 className="h-3.5 w-3.5" />
-                        </Button>
                         <Button
                           variant="ghost"
                           size="icon"
@@ -163,9 +137,20 @@ export default function ChatThread({ messages, onRegenerate, onVariations }: Cha
                 ) : null}
               </div>
 
-              {/* Regenerate & Variations buttons */}
+              {/* Action buttons below bubble */}
               {msg.imageUrl && !msg.isGenerating && (
                 <div className="flex items-center gap-1.5 pl-1">
+                  {onRefine && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2.5 text-[11px] font-mono text-muted-foreground hover:text-foreground gap-1.5"
+                      onClick={() => onRefine(msg.id, msg.imageUrl!, msg.prompt)}
+                    >
+                      <Wand2 className="h-3 w-3" />
+                      Refine
+                    </Button>
+                  )}
                   {onRegenerate && (
                     <Button
                       variant="ghost"
