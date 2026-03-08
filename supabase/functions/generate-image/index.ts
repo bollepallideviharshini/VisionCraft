@@ -232,6 +232,22 @@ serve(async (req) => {
     const imageData = aiData.choices?.[0]?.message?.images?.[0]?.image_url?.url;
 
     if (!imageData) {
+      // Check if the model blocked the request due to safety filters
+      const textResponse = aiData.choices?.[0]?.message?.content || "";
+      const isBlocked = textResponse.toLowerCase().includes("safety") || 
+                        textResponse.toLowerCase().includes("can't generate") ||
+                        textResponse.toLowerCase().includes("unable to") ||
+                        textResponse.toLowerCase().includes("policy");
+      
+      if (isBlocked) {
+        return new Response(
+          JSON.stringify({ 
+            type: "chat", 
+            textResponse: `I wasn't able to generate that exact image due to content filters, but I have some creative alternatives! Try describing the scene differently — for example, instead of a specific person, describe their iconic look, style, or silhouette. I can create something equally stunning with a fresh artistic twist. What would you like to try?` 
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
       throw new Error("No image generated from AI");
     }
 
