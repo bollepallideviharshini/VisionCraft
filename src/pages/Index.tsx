@@ -19,6 +19,10 @@ export default function Index() {
   const [currentImageId, setCurrentImageId] = useState<string | null>(null);
   const [inspirationPrompt, setInspirationPrompt] = useState("");
 
+  const handleInspirationSelect = (prompt: string) => {
+    setInspirationPrompt(prompt);
+  };
+
   const handleGenerate = useCallback(async (prompt: string, aspectRatio: string, style: string) => {
     if (!user) {
       navigate("/auth");
