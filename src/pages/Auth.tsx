@@ -23,7 +23,8 @@ export default function Auth() {
     try {
       if (isSignUp) {
         await signUp(email, password, username);
-        toast({ title: "Account created!", description: "Check your email to confirm." });
+        toast({ title: "Welcome to VisionCraft!", description: "Your creative workspace is ready." });
+        navigate("/");
       } else {
         await signIn(email, password);
         navigate("/");
