@@ -169,37 +169,45 @@ serve(async (req) => {
     }
 
     // --- Step 2b: Image generation ---
+    const isNewTopic = intent === "new_image" || clearContext;
     const dims = ASPECT_RATIO_MAP[aspectRatio] || ASPECT_RATIO_MAP["1:1"];
 
     const aiMessages: any[] = [];
 
-    aiMessages.push({
-      role: "user",
-      content: "You are an image generation AI. Generate images based on user descriptions. When the user refers to previous images or asks for modifications, use the conversation context to understand what they want changed.",
-    });
+    if (isNewTopic) {
+      // Hard reset: no history, fresh generation
+      aiMessages.push({
+        role: "user",
+        content: "You are an image generation AI. Generate a completely fresh, standalone image based only on the user's description below. Do not reference any previous context.",
+      });
+    } else {
+      aiMessages.push({
+        role: "user",
+        content: "You are an image generation AI. Generate images based on user descriptions. When the user refers to previous images or asks for modifications, use the conversation context to understand what they want changed.",
+      });
 
-    const recentHistory = (chatHistory as ChatHistoryItem[]).slice(-6);
-    for (const item of recentHistory) {
-      if (item.role === "user") {
-        aiMessages.push({ role: "user", content: `Previous request: ${item.prompt}` });
-      } else if (item.role === "assistant" && item.imageUrl) {
-        aiMessages.push({
-          role: "user",
-          content: [
-            { type: "text", text: "Here is the image that was generated from the previous request:" },
-            { type: "image_url", image_url: { url: item.imageUrl } },
-          ],
-        });
+      const recentHistory = (chatHistory as ChatHistoryItem[]).slice(-6);
+      for (const item of recentHistory) {
+        if (item.role === "user") {
+          aiMessages.push({ role: "user", content: `Previous request: ${item.prompt}` });
+        } else if (item.role === "assistant" && item.imageUrl) {
+          aiMessages.push({
+            role: "user",
+            content: [
+              { type: "text", text: "Here is the image that was generated from the previous request:" },
+              { type: "image_url", image_url: { url: item.imageUrl } },
+            ],
+          });
+        }
       }
     }
 
     const variationSuffix = variationMode
       ? " Create a slight variation of this concept with minor creative differences."
       : "";
-    const hasHistory = recentHistory.length > 0;
-    const contextPrefix = hasHistory
-      ? "Based on our conversation above, generate a new image: "
-      : "Generate a high-quality image: ";
+    const contextPrefix = isNewTopic
+      ? "Generate a high-quality image: "
+      : (chatHistory.length > 0 ? "Based on our conversation above, generate a new image: " : "Generate a high-quality image: ");
 
     aiMessages.push({
       role: "user",
